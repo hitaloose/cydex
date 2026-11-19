@@ -31,6 +31,16 @@ const PATHS = {
   arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
   close: '<path d="M6 6l12 12M18 6L6 18"/>',
   globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+  wifi: '<path d="M2 8.5a14.5 14.5 0 0 1 20 0"/><path d="M5 12a10 10 0 0 1 14 0"/><path d="M8.5 15.5a5 5 0 0 1 7 0"/><circle cx="12" cy="19" r="1"/>',
+  wifi_off: '<path d="M2 8.5a14.5 14.5 0 0 1 20 0"/><path d="M5 12a10 10 0 0 1 14 0"/><path d="M8.5 15.5a5 5 0 0 1 7 0"/><circle cx="12" cy="19" r="1"/><path d="M3 3l18 18"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 8h.01"/>',
+  lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  eye_off: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M3 3l18 18"/>',
+  shift: '<path d="M12 4l8 8h-4.5v7h-7v-7H4z"/>',
+  shield: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M12 9v4"/><path d="M12 16h.01"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  check_circle: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9"/>',
 };
 
 // [nome do ícone no código, traço, tamanho px, espessura do traço]
@@ -61,6 +71,22 @@ const ICONS = [
   ["prev_18", "back", 18, 2.4],          // ‹ da Ficha
   ["arrow_18", "arrow", 18, 2.4],        // entre estágios da Evolução
   ["backspace_18", "backspace", 18, 2],
+  // Wi-Fi (05c, 05d, 05e) e avisos do Claude Code (15, 15b).
+  ["wifi_16", "wifi", 16, 2.2],          // linha Wi-Fi do Sistema
+  ["wifi_14", "wifi", 14, 2.4],          // faixa da Senha
+  ["wifi_off_28", "wifi_off", 28, 2],    // Wi-Fi desligado
+  ["info_18", "info", 18, 2.2],          // ⓘ do cabeçalho do Wi-Fi
+  ["lock_12", "lock", 12, 2.6],          // rede com senha
+  ["lock_14", "lock", 14, 2.4],          // campo da senha
+  ["eye_16", "eye", 16, 2.2],
+  ["eye_off_16", "eye_off", 16, 2.2],
+  ["shift_18", "shift", 18, 2.2],        // ⇧ do teclado (a fonte não tem o glifo)
+  ["shield_20", "shield", 20, 2.2],      // aviso: permissão
+  ["clock_20", "clock", 20, 2.2],        // aviso: esperando
+  ["check_circle_20", "check_circle", 20, 2.2],  // aviso: terminou
+  ["shield_16", "shield", 16, 2.4],      // balão da Vitrine
+  ["clock_16", "clock", 16, 2.4],
+  ["check_circle_16", "check_circle", 16, 2.4],
 ];
 
 // Ícones com viewBox próprio (marcas de status, 14x14 no canvas).
@@ -83,6 +109,9 @@ const RAW = [
   ["floor_140", 140, '<defs><radialGradient id="g" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#fff" stop-opacity="1"/><stop offset="0.55" stop-color="#fff" stop-opacity="0.85"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient></defs><ellipse cx="70" cy="11" rx="70" ry="11" fill="url(#g)"/>', 140, 22],
   // ▶ cheio do "Iniciar vitrine".
   ["play_18", 24, '<path d="M8 5v14l11-7z" fill="#fff"/>', 18],  // ▶ do cabeçalho do 05b
+  // Ponta do balão da Vitrine (15b): contorno na cor do aviso + miolo surface por cima.
+  ["tail_line_8", 8, '<path d="M8 0.5L0.8 7L8 13.5" fill="none" stroke="#fff" stroke-width="1"/>', 8, 14],
+  ["tail_fill_8", 8, '<path d="M8.5 1.6L2.2 7L8.5 12.4z" fill="#fff"/>', 8, 14],
   ["dash_box_48", 48, '<rect x="0.5" y="0.5" width="47" height="47" rx="4" fill="none" stroke="#fff" stroke-width="1" stroke-dasharray="3 2"/>', 48],
 ];
 

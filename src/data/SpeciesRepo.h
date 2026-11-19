@@ -11,6 +11,9 @@
 // `done`/`total` = registros lidos. Usado pela barra do Boot ("642 / 1025").
 typedef void (*SpeciesProgressCb)(uint16_t done, uint16_t total, void *user);
 
+// Reserva a tabela de nomes (16 KB, util/early_alloc). Chamar no setup,
+// depois de early_alloc_init().
+bool species_repo_reserve();
 bool species_repo_init(SpeciesProgressCb cb, void *user);
 uint16_t species_repo_count();
 // Nome UTF-8 de `n` (1..count), ou "" fora da faixa.

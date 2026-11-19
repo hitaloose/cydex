@@ -60,3 +60,8 @@ void power_tick() {
     LOG_I("power", "tela apagada (%u min sem toque)", minutes);
   }
 }
+
+void power_wake() {
+  if (s_asleep) wake();
+  else lv_disp_trig_activity(nullptr);
+}

@@ -411,6 +411,30 @@ void test_showcase_shift_and_cycle() {
   TEST_ASSERT_EQUAL(1, showcase_cycle_minutes(1, 30));  // arredonda pra cima
 }
 
+void test_showcase_fit() {
+  constexpr uint16_t K = 0x07E0;
+  static uint16_t px[96 * 96];
+  for (auto &v : px) v = K;
+  uint8_t x0 = 0, x1 = 0;
+  TEST_ASSERT_FALSE(showcase_opaque_cols(px, 96, K, &x0, &x1));
+  px[10 * 96 + 30] = 0x1234;  // assimétrico: colunas 30 e 71 em linhas diferentes
+  px[80 * 96 + 71] = 0;
+  TEST_ASSERT_TRUE(showcase_opaque_cols(px, 96, K, &x0, &x1));
+  TEST_ASSERT_EQUAL(30, x0);
+  TEST_ASSERT_EQUAL(71, x1);
+  px[50 * 96 + 0] = 0;
+  px[51 * 96 + 95] = 0;
+  TEST_ASSERT_TRUE(showcase_opaque_cols(px, 96, K, &x0, &x1));
+  TEST_ASSERT_EQUAL(0, x0);
+  TEST_ASSERT_EQUAL(95, x1);
+
+  TEST_ASSERT_EQUAL(512, showcase_fit_zoom(0, 164));
+  TEST_ASSERT_EQUAL(512, showcase_fit_zoom(82, 164));   // cabe exato em 2x
+  TEST_ASSERT_EQUAL(512, showcase_fit_zoom(40, 164));   // nunca passa de 2x
+  TEST_ASSERT_EQUAL(437, showcase_fit_zoom(96, 164));   // 164*256/96 = 437,3
+  TEST_ASSERT_EQUAL(505, showcase_fit_zoom(83, 164));  // 505,8
+}
+
 // ---------- NumberInput ----------
 
 void test_number_input() {
@@ -537,6 +561,7 @@ int main() {
   RUN_TEST(test_option_step);
   RUN_TEST(test_showcase_next);
   RUN_TEST(test_showcase_shift_and_cycle);
+  RUN_TEST(test_showcase_fit);
   RUN_TEST(test_number_input);
   RUN_TEST(test_gen3_merge_dex);
   RUN_TEST(test_gen3_tolerates_trailing_bytes_and_rejects_other_sizes);

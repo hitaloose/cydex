@@ -26,6 +26,47 @@ static uint16_t px_for(SpriteSize s) {
   }
 }
 
+static constexpr size_t kSlotSize = 48 * 48 * 2;  // 4608 B
+static constexpr uint8_t kSlots = 10;
+static uint8_t *s_arena = nullptr;
+static uint8_t s_used[kSlots];  // 0 = livre; senão, nº de vagas do bloco que começa aqui
+static bool s_busy[kSlots];
+
+void sprite_reserve() {
+  if (s_arena) return;
+  s_arena = (uint8_t *)malloc(kSlotSize * kSlots);
+  if (!s_arena) LOG_E(TAG, "sem bloco de %u B pros sprites", (unsigned)(kSlotSize * kSlots));
+}
+
+// Primeira sequência de `n` vagas livres; nullptr se não houver.
+static uint8_t *arena_take(size_t bytes) {
+  if (!s_arena) return nullptr;
+  uint8_t n = (uint8_t)((bytes + kSlotSize - 1) / kSlotSize);
+  for (uint8_t i = 0; i + n <= kSlots; i++) {
+    bool free_run = true;
+    for (uint8_t k = 0; k < n; k++) {
+      if (s_busy[i + k]) {
+        free_run = false;
+        break;
+      }
+    }
+    if (!free_run) continue;
+    for (uint8_t k = 0; k < n; k++) s_busy[i + k] = true;
+    s_used[i] = n;
+    return s_arena + i * kSlotSize;
+  }
+  return nullptr;
+}
+
+// true se `p` era da área (e foi devolvido).
+static bool arena_give(uint8_t *p) {
+  if (!s_arena || p < s_arena || p >= s_arena + kSlotSize * kSlots) return false;
+  uint8_t i = (uint8_t)((p - s_arena) / kSlotSize);
+  for (uint8_t k = 0; k < s_used[i]; k++) s_busy[i + k] = false;
+  s_used[i] = 0;
+  return true;
+}
+
 // Cabeçalho validado uma vez por arquivo (cache por tamanho).
 static bool s_checked[3];
 static uint16_t s_count[3];
@@ -55,7 +96,8 @@ bool sprite_load(uint16_t n, SpriteSize size, Sprite *out) {
   if (n < 1 || n > s_count[slot]) return false;
 
   const size_t data_size = (size_t)px * px * 2;
-  uint8_t *buf = (uint8_t *)malloc(data_size);
+  uint8_t *buf = arena_take(data_size);
+  if (!buf) buf = (uint8_t *)malloc(data_size);
   if (!buf) {
     LOG_E(TAG, "sem memória para #%u (%u B)", n, (unsigned)data_size);
     return false;
@@ -67,7 +109,7 @@ bool sprite_load(uint16_t n, SpriteSize size, Sprite *out) {
   if (!ok || header.w != px || header.h != px ||
       header.cf != LV_IMG_CF_TRUE_COLOR_CHROMA_KEYED) {
     LOG_E(TAG, "%s: registro #%u inválido", path, n);
-    free(buf);
+    if (!arena_give(buf)) free(buf);
     return false;
   }
 
@@ -79,6 +121,6 @@ bool sprite_load(uint16_t n, SpriteSize size, Sprite *out) {
 }
 
 void sprite_free(Sprite *s) {
-  if (s->buf) free(s->buf);
+  if (s->buf && !arena_give(s->buf)) free(s->buf);
   memset(s, 0, sizeof(*s));
 }

@@ -12,6 +12,25 @@ static const uint32_t kClickMs = 12;
 static uint32_t s_until = 0;
 static bool s_on = false;
 
+// Bipe do aviso: tom, pausa, tom mais agudo. {Hz (0 = silêncio), ms}.
+struct Step {
+  uint16_t hz, ms;
+};
+static const Step kChime[] = {{1800, 70}, {0, 50}, {2400, 90}};
+static const uint8_t kChimeSteps = sizeof(kChime) / sizeof(kChime[0]);
+static uint8_t s_step = kChimeSteps;  // = parado
+
+static void play(uint16_t hz, uint16_t ms) {
+  if (hz) {
+    ledcWriteTone(kChannel, hz);
+    ledcWrite(kChannel, 48);
+  } else {
+    ledcWrite(kChannel, 0);
+  }
+  s_until = millis() + ms;
+  s_on = true;
+}
+
 void speaker_init() {
   ledcSetup(kChannel, kToneHz, 8);
   ledcAttachPin(PIN_SPEAKER, kChannel);
@@ -19,15 +38,26 @@ void speaker_init() {
 }
 
 void speaker_click() {
+  if (s_step < kChimeSteps) return;  // não corta o bipe do aviso
   ledcWriteTone(kChannel, kToneHz);
   ledcWrite(kChannel, 32);  // duty baixo: clique discreto
   s_until = millis() + kClickMs;
   s_on = true;
 }
 
+void speaker_chime() {
+  s_step = 0;
+  play(kChime[0].hz, kChime[0].ms);
+}
+
 void speaker_update() {
-  if (s_on && (int32_t)(millis() - s_until) >= 0) {
-    ledcWrite(kChannel, 0);
-    s_on = false;
+  if (!s_on || (int32_t)(millis() - s_until) < 0) return;
+  if (s_step + 1 < kChimeSteps) {
+    s_step++;
+    play(kChime[s_step].hz, kChime[s_step].ms);
+    return;
   }
+  s_step = kChimeSteps;
+  ledcWrite(kChannel, 0);
+  s_on = false;
 }

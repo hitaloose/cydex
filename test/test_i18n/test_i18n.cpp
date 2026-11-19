@@ -5,6 +5,7 @@
 
 #include "dex/Types.h"
 #include "i18n/i18n.h"
+#include "logic/TextFit.h"
 
 void setUp() { i18n_set_lang(LANG_PT_BR); }
 void tearDown() {}
@@ -68,7 +69,7 @@ void test_type_keys_follow_enum_order() {
 }
 
 void test_only_latin1_glyphs_plus_extras() {
-  // As fontes cobrem 0x20-0x7E, 0xA0-0xFF e … ‹ › • – — “ ” (tools/gen_fonts.mjs).
+  // Mesma tabela de glifos que o texto dos avisos usa (logic/TextFit).
   for (int l = 0; l < LANG_COUNT; l++) {
     for (int k = 0; k < STR_COUNT; k++) {
       const unsigned char *p = (const unsigned char *)i18n_raw((LangId)l, (StrId)k);
@@ -83,8 +84,7 @@ void test_only_latin1_glyphs_plus_extras() {
           cp = ((p[0] & 0x0F) << 12) | ((p[1] & 0x3F) << 6) | (p[2] & 0x3F);
           p += 3;
         }
-        bool ok = (cp >= 0x20 && cp <= 0x7E) || (cp >= 0xA0 && cp <= 0xFF) || cp == 0x2013 ||
-                  cp == 0x2014 || cp == 0x201C || cp == 0x201D || cp == 0x2022 || cp == 0x2026 || cp == 0x2039 || cp == 0x203A;
+        bool ok = font_has_glyph(cp);
         char msg[80];
         snprintf(msg, sizeof(msg), "idioma %s, chave %d: U+%04X sem glifo na fonte",
                  i18n_lang_code((LangId)l), k, cp);

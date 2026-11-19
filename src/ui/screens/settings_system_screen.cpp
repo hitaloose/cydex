@@ -1,10 +1,12 @@
 // 05c Ajustes › Sistema (canvas: AjustesSistema.dc.html).
 //   "Idioma" + uma linha de 34 px por idioma (troca na hora, nav_reload)
+//   linha "Wi-Fi ›" (34 px) com a rede atual, abre o 05d
 //   embaixo (52 px): Cartão SD "1025 registros · 4 saves" + Recarregar
 #include "data/Settings.h"
 #include "data/SpeciesRepo.h"
 #include "data/StatusStore.h"
 #include "i18n/i18n.h"
+#include "net/wifi_mgr.h"
 #include "screens.h"
 #include "ui/icons/icons.h"
 #include "ui/settings_widgets.h"
@@ -22,6 +24,17 @@ void on_lang(lv_event_t *e) {
   if (lang == i18n_lang()) return;
   settings_set_lang(lang);
   nav_reload();  // remonta esta tela já no idioma novo
+}
+
+void on_wifi(lv_event_t *) { nav_go(Screen::SettingsWifi); }
+
+const char *wifi_summary() {
+  switch (wifi_state()) {
+    case WifiState::Off: return tr(STR_WIFI_OFF);
+    case WifiState::Connected: return wifi_ssid();
+    case WifiState::Connecting: return tr(STR_WIFI_CONNECTING);
+    default: return tr(STR_WIFI_DISCONNECTED);
+  }
 }
 
 void on_reload(lv_event_t *) {
@@ -67,6 +80,9 @@ lv_obj_t *settings_system_screen_create() {
     ui_on_click(row, on_lang, (void *)(uintptr_t)lang);
     y += kRowH;
   }
+
+  set_link_row(scr, y, kRowH, &icon_wifi_16, STR_SET_WIFI, wifi_summary(), on_wifi, true);
+  y += kRowH;
 
   // Cartão SD, colado embaixo.
   lv_obj_t *sd = set_row(scr, 240 - kSdH, kSdH, false);

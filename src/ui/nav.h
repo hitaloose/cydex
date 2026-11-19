@@ -17,6 +17,9 @@ enum class Screen : uint8_t {
   Settings,
   SettingsShowcase,
   SettingsSystem,
+  SettingsWifi,
+  WifiInfo,
+  WifiPassword,
   Detail,
   Showcase,
 };

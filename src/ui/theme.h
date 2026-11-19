@@ -19,6 +19,9 @@ constexpr uint32_t ACCENT = 0xFF5A4E;
 constexpr uint32_t ON_ACCENT = 0x0F1317;  // texto sobre accent e chips de tipo
 constexpr uint32_t ACCENT_SOFT = 0x2A1A1A;  // fundo do selo "Capturado" da Ficha
 constexpr uint32_t SURFACE_DIM = 0x161B21;  // moldura do sprite de espécie não vista
+// Avisos do Claude Code (15, 15b): permissão usa o accent.
+constexpr uint32_t NOTICE_IDLE = 0xF5D547;  // = Elétrico
+constexpr uint32_t NOTICE_DONE = 0x6FCF6A;  // = Grama
 
 // Medidas fixas (CLAUDE.md, "Regras de UI").
 constexpr lv_coord_t HEADER_H = 32;

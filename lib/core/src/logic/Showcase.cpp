@@ -34,3 +34,27 @@ void showcase_shift(uint32_t k, int8_t *dx, int8_t *dy) {
 uint32_t showcase_cycle_minutes(uint16_t count, uint16_t interval_s) {
   return ((uint32_t)count * interval_s + 59) / 60;
 }
+
+bool showcase_opaque_cols(const uint16_t *px, uint16_t size, uint16_t key, uint8_t *x0,
+                          uint8_t *x1) {
+  int lo = size, hi = -1;
+  for (uint16_t y = 0; y < size; y++) {
+    const uint16_t *row = px + (uint32_t)y * size;
+    for (int x = 0; x < lo; x++) {
+      if (row[x] != key) { lo = x; break; }
+    }
+    for (int x = size - 1; x > hi; x--) {
+      if (row[x] != key) { hi = x; break; }
+    }
+  }
+  if (hi < 0) return false;
+  *x0 = (uint8_t)lo;
+  *x1 = (uint8_t)hi;
+  return true;
+}
+
+uint16_t showcase_fit_zoom(uint16_t opaque_w, uint16_t avail) {
+  if (opaque_w == 0) return 512;
+  uint32_t z = (uint32_t)avail * 256 / opaque_w;
+  return z > 512 ? 512 : (uint16_t)z;
+}

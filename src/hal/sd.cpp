@@ -14,11 +14,18 @@ static size_t s_read_size = 0;
 
 // O padrão do SD.begin é 4 MHz. 20 MHz é estável no CYD (VSPI dedicada).
 static const uint32_t kSdFreqHz = 20000000;
+// Arquivos abertos ao mesmo tempo, no máximo: o de sd_open_read (reaproveitado)
+// + pasta e entrada do sd_list_files. O FATFS reserva ~4 KB POR arquivo num
+// bloco contíguo só; o padrão (5) pede ~25 KB e, com o Wi-Fi, não cabe.
+static const uint8_t kMaxFiles = 3;
 
 bool sd_init() {
   sd_close_read();
+  // Já montado (Sistema › Recarregar): não desmonta. Remontar com o Wi-Fi
+  // ligado falha, porque o FATFS pede ~17 KB contíguos de novo.
+  if (s_present && SD.cardType() != CARD_NONE) return true;
   SD.end();
-  if (!SD.begin(PIN_SD_CS, SPI, kSdFreqHz)) {
+  if (!SD.begin(PIN_SD_CS, SPI, kSdFreqHz, "/sd", kMaxFiles)) {
     LOG_E(TAG, "SD.begin falhou (sem cartão ou não é FAT32?)");
     s_present = false;
     return false;

@@ -27,3 +27,12 @@ void showcase_shift(uint32_t k, int8_t *dx, int8_t *dy);
 
 // Minutos pra mostrar todas (resumo do 05b).
 uint32_t showcase_cycle_minutes(uint16_t count, uint16_t interval_s);
+
+// Colunas opacas (primeira e última) de um sprite quadrado RGB565 com fundo
+// chroma key `key`. Falso se não houver pixel opaco.
+bool showcase_opaque_cols(const uint16_t *px, uint16_t size, uint16_t key, uint8_t *x0,
+                          uint8_t *x1);
+
+// Zoom do LVGL (256 = 1x) pra uma parte opaca de `opaque_w` px caber em
+// `avail` px: 2x (512) quando cabe, senão o maior que cabe.
+uint16_t showcase_fit_zoom(uint16_t opaque_w, uint16_t avail);

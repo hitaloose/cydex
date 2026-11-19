@@ -141,6 +141,45 @@ typedef enum {
   STR_SC_EMPTY_SEEN,
   STR_SC_EMPTY_HINT,
 
+  /* Wi-Fi (05c, 05d, 05d', 05e) e teclado da senha */
+  STR_SET_WIFI,  /* linha do 05c e título do 05d */
+  STR_WIFI_OFF,
+  STR_WIFI_DISCONNECTED,
+  STR_WIFI_SCANNING,
+  STR_WIFI_SCANNING_LONG,
+  STR_WIFI_CONNECTING,
+  STR_WIFI_CONNECTED,
+  STR_WIFI_NETWORKS_ONE,
+  STR_WIFI_NETWORKS_FMT,  /* %u >= 2 ou 0 */
+  STR_WIFI_NONE,
+  STR_WIFI_OPEN,  /* rede sem senha */
+  STR_WIFI_FORGET,
+  STR_WIFI_OFF_TITLE,
+  STR_WIFI_OFF_BODY,
+  STR_WIFI_PASSWORD,  /* placeholder */
+  STR_WIFI_CONNECT,
+  STR_WIFI_DONE,
+  STR_WIFI_WRONG_PASSWORD,
+  STR_WIFI_NOT_FOUND,
+  STR_WIFI_FAILED,
+  STR_WIFI_INFO_TITLE,
+  STR_WIFI_INFO_ADDRESS,
+  STR_WIFI_INFO_IP,
+  STR_WIFI_INFO_KEY,
+  STR_WIFI_INFO_PC,
+  STR_WIFI_INFO_HELP_FMT,  /* %s = chave */
+  STR_WIFI_INFO_EXAMPLE,
+  STR_KB_MODE_LOWER,  /* teclado da senha */
+  STR_KB_MODE_SYMBOLS,
+
+  /* Avisos do Claude Code (15, 15b) */
+  STR_NOTICE_PERMISSION,  /* faixa (15) */
+  STR_NOTICE_IDLE,
+  STR_NOTICE_DONE,
+  STR_NOTICE_PERMISSION_SHORT,  /* balão da Vitrine (15b) */
+  STR_NOTICE_IDLE_SHORT,
+  STR_NOTICE_DONE_SHORT,
+
   /* Genéricos */
   STR_UNKNOWN_NAME,  /* espécie desconhecida */
   STR_DECIMAL_SEP,   /* "," ou "." em altura/peso */

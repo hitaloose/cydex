@@ -5,19 +5,30 @@
 #include "dex/Dex.h"
 #include "hal/sd.h"
 #include "paths.h"
+#include "util/early_alloc.h"
 #include "util/log.h"
 
 static const char *TAG = "species";
 
-static char s_names[DEX_COUNT][SPECIES_NAME_SIZE];
+// 16 KB no heap (util/early_alloc), não na .bss: com o Wi-Fi a DRAM estática
+// não cabe na região do linker. Reservado uma vez no setup e nunca solto.
+typedef char NameRow[SPECIES_NAME_SIZE];
+static NameRow *s_names = nullptr;
 static uint8_t s_types[DEX_COUNT][2];
 static uint16_t s_count = 0;
 
 // Lê em blocos de 32 registros (2 KB): bem mais rápido que 1025 seeks.
 static constexpr uint16_t kChunk = 32;
 
+bool species_repo_reserve() {
+  if (s_names) return true;
+  s_names = (NameRow *)early_alloc(sizeof(NameRow) * DEX_COUNT);
+  return true;
+}
+
 bool species_repo_init(SpeciesProgressCb cb, void *user) {
   s_count = 0;
+  if (!species_repo_reserve()) return false;
   size_t size = 0;
   if (!sd_open_read(SPECIES_PATH, &size)) return false;
 

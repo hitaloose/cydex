@@ -17,6 +17,9 @@ lv_obj_t *ui_logo(lv_obj_t *parent, lv_coord_t size);
 // Barra de progresso fina (trilho surface-2, preenchimento accent).
 lv_obj_t *ui_progress(lv_obj_t *parent, lv_coord_t w, lv_coord_t h);
 void ui_progress_set(lv_obj_t *bar, int32_t value, int32_t max);
+// Label de largura `w` que quebra linha e para em `max_lines` com "…"
+// (o LVGL só põe "…" com altura fixa: a altura vira a do texto, até o limite).
+void ui_label_clamp(lv_obj_t *label, lv_coord_t w, uint8_t max_lines);
 // Torna `obj` clicável, chamando `cb` no clique (com `user` em event user_data).
 void ui_on_click(lv_obj_t *obj, lv_event_cb_t cb, void *user = nullptr);
 

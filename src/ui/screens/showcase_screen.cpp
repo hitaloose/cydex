@@ -1,6 +1,9 @@
 // 14 Modo vitrine (canvas: Vitrine.dc.html; CLAUDE.md "Modo vitrine").
-//   palco 192x192 à esquerda: sombra no chão (cor do tipo 1) + sprite 96 em 2x
-//   painel de 104 px à direita: #nº, nome, tipos, medidas, status, mini status
+//   palco 164x192 à esquerda: sombra no chão (cor do tipo 1) + sprite 96 em até
+//     2x, reduzido pra parte opaca caber nos 164 px (6 sprites usam os 96 px
+//     inteiros), com os pés no fundo do palco
+//   painel de 144 px à direita: #nº, nome (1 linha, "…"), tipos lado a lado,
+//     medidas, status, mini status
 //   tocar em qualquer lugar volta pro Menu
 // Só redesenha na troca (timer do intervalo dos Ajustes); entre trocas nada
 // muda. Cada troca desloca tudo 1–2 px (anti-retenção). Brilho próprio
@@ -8,7 +11,6 @@
 #include <esp_random.h>
 
 #include <cstdio>
-#include <cstring>
 
 #include "data/Settings.h"
 #include "data/SpeciesRepo.h"
@@ -18,8 +20,10 @@
 #include "i18n/i18n.h"
 #include "logic/Format.h"
 #include "logic/Showcase.h"
+#include "notify/Notice.h"
 #include "screens.h"
 #include "ui/icons/icons.h"
+#include "ui/notice_center.h"
 #include "ui/power.h"
 #include "ui/theme.h"
 #include "ui/widgets.h"
@@ -27,8 +31,10 @@
 
 namespace {
 
-constexpr lv_coord_t kStageX = 6, kStageY = 24, kStage = 192;
-constexpr lv_coord_t kPanelX = 208, kPanelY = 18, kPanelW = 104, kPanelH = 204;
+constexpr lv_coord_t kStageX = 2, kStageY = 24, kStageW = 164, kStageH = 192;
+constexpr lv_coord_t kPanelX = 172, kPanelY = 18, kPanelW = 144, kPanelH = 204;
+constexpr lv_coord_t kFloorW = 140, kFloorH = 22;
+constexpr uint16_t kChromaKey = 0x07E0;  // lv_color_hex(0x00FF00) em RGB565 (tools/build_sd.py)
 
 uint16_t s_list[DEX_COUNT];  // espécies elegíveis (2 KB)
 uint16_t s_count;
@@ -38,6 +44,7 @@ Sprite s_sprite;
 lv_obj_t *s_stage;
 lv_obj_t *s_panel;
 lv_timer_t *s_timer;
+lv_obj_t *s_scr;
 
 void build_list() {
   const DexStatus &st = status_store_get();
@@ -71,30 +78,37 @@ void show(uint16_t n) {
   SpeciesType t1 = have ? rec.type1 : SpeciesType::None;
   if (t1 != SpeciesType::None) {
     lv_obj_t *floor = ui_icon(s_stage, &icon_floor_140, species_type_color(t1));
-    lv_obj_set_pos(floor, 26, kStage - 14 - 22);
+    lv_obj_set_pos(floor, (kStageW - kFloorW) / 2, kStageH - 14 - kFloorH);
     lv_obj_set_style_img_opa(floor, 46, 0);
   }
   if (sprite_load(n, SpriteSize::S96, &s_sprite)) {
-    // 2x com vizinho mais próximo: pixel art nítida e escala inteira.
+    // Até 2x, vizinho mais próximo. Os mais largos não cabem em 2x no palco e
+    // descem até ~1,7x. O centro da parte opaca vai pro meio do palco e o pé do
+    // quadro fica no fundo (os pés não sobem quando a escala diminui).
+    const uint16_t side = s_sprite.dsc.header.w;
+    uint8_t x0 = 0, x1 = side - 1;
+    showcase_opaque_cols((const uint16_t *)s_sprite.dsc.data, side, kChromaKey, &x0, &x1);
+    uint16_t zoom = showcase_fit_zoom(x1 - x0 + 1, kStageW);
+    lv_coord_t off = (lv_coord_t)(((int32_t)side - (x0 + x1 + 1)) * zoom / 512);
     lv_obj_t *img = lv_img_create(s_stage);
     lv_img_set_src(img, &s_sprite.dsc);
     lv_img_set_antialias(img, false);
-    lv_img_set_zoom(img, 512);
+    lv_img_set_zoom(img, zoom);
     lv_img_set_size_mode(img, LV_IMG_SIZE_MODE_REAL);
-    lv_obj_center(img);
+    lv_obj_align(img, LV_ALIGN_BOTTOM_MID, off, 0);
   }
 
   lv_obj_t *num = ui_label(s_panel, &font_14_600, theme::MUTED, "");
   lv_label_set_text_fmt(num, "#%03u", n);
   const char *name = species_repo_name(n);
-  lv_obj_t *nl = ui_label(s_panel, strlen(name) > 9 ? &font_16_700 : &font_20_700, theme::TEXT, name);
-  lv_obj_set_width(nl, kPanelW);
-  lv_label_set_long_mode(nl, LV_LABEL_LONG_DOT);
+  lv_obj_t *nl = ui_label(s_panel, &font_20_700, theme::TEXT, name);
+  ui_label_clamp(nl, kPanelW, 1);
 
   lv_obj_t *types = spaced(ui_box(s_panel), 2);
   lv_obj_set_size(types, kPanelW, LV_SIZE_CONTENT);
   lv_obj_set_style_pad_row(types, 4, 0);
-  lv_obj_set_flex_flow(types, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_style_pad_column(types, 4, 0);
+  lv_obj_set_flex_flow(types, LV_FLEX_FLOW_ROW_WRAP);  // desce só se a dupla não couber
   if (have) {
     for (SpeciesType t : {rec.type1, rec.type2}) {
       if (t != SpeciesType::None)
@@ -160,12 +174,14 @@ void on_delete(lv_event_t *) {
   s_timer = nullptr;
   sprite_free(&s_sprite);
   power_use_normal_level();
+  s_scr = nullptr;
 }
 
 }  // namespace
 
 lv_obj_t *showcase_screen_create() {
   lv_obj_t *scr = ui_screen();
+  s_scr = scr;
   lv_obj_add_event_cb(scr, on_delete, LV_EVENT_DELETE, nullptr);
   ui_on_click(scr, on_exit);
   power_set_level(settings().showcase_brightness);
@@ -184,7 +200,7 @@ lv_obj_t *showcase_screen_create() {
   }
 
   s_stage = ui_box(scr);
-  lv_obj_set_size(s_stage, kStage, kStage);
+  lv_obj_set_size(s_stage, kStageW, kStageH);
   s_panel = ui_box(scr);
   lv_obj_set_size(s_panel, kPanelW, kPanelH);
   lv_obj_set_flex_flow(s_panel, LV_FLEX_FLOW_COLUMN);
@@ -192,4 +208,59 @@ lv_obj_t *showcase_screen_create() {
   next();
   s_timer = lv_timer_create(on_tick, (uint32_t)settings().showcase_interval_s * 1000u, nullptr);
   return scr;
+}
+
+// 15b: até 3 balões compactos (162x50, tipo + projeto, sem a mensagem), como
+// se a criatura falasse várias coisas. Ficam fora do palco e do painel, então
+// sobrevivem às trocas de espécie.
+lv_obj_t *showcase_show_notices(const Notice *items, uint8_t count, lv_event_cb_t on_tap) {
+  if (!s_scr) return nullptr;
+  constexpr lv_coord_t kTail = 7, kW = 162, kH = 50, kGap = 6, kPadH = 10;
+  constexpr uint8_t kMax = 3;
+
+  lv_obj_t *wrap = ui_box(s_scr);
+  lv_obj_set_pos(wrap, 150 - kTail, 14);
+  lv_obj_set_size(wrap, kW + kTail, kMax * kH + (kMax - 1) * kGap);
+
+  for (uint8_t i = 0; i < count && i < kMax; i++) {
+    const Notice &n = items[i];
+    uint32_t color = notice_color(n.kind);
+    lv_coord_t y = i * (kH + kGap);
+
+    lv_obj_t *b = ui_box(wrap);
+    lv_obj_set_pos(b, kTail, y);
+    lv_obj_set_size(b, kW, kH);
+    lv_obj_set_style_radius(b, 10, 0);
+    lv_obj_set_style_border_width(b, 1, 0);
+    lv_obj_set_style_border_color(b, c(color), 0);
+    lv_obj_set_style_bg_color(b, c(theme::SURFACE), 0);
+    lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
+    lv_obj_set_style_pad_hor(b, kPadH, 0);
+    lv_obj_set_style_pad_row(b, 2, 0);
+    lv_obj_set_flex_flow(b, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_flex_align(b, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+
+    lv_obj_t *head = ui_box(b);
+    lv_obj_set_size(head, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_column(head, 6, 0);
+    lv_obj_set_flex_flow(head, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(head, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    ui_icon(head, notice_icon(n.kind, true), color);
+    StrId kind = n.kind == NoticeKind::Permission ? STR_NOTICE_PERMISSION_SHORT
+                 : n.kind == NoticeKind::Idle     ? STR_NOTICE_IDLE_SHORT
+                                                  : STR_NOTICE_DONE_SHORT;
+    ui_label(head, &font_12_700, color, tr(kind));
+
+    lv_obj_t *proj = ui_label(b, &font_14_700, theme::TEXT, n.project);
+    lv_obj_set_width(proj, kW - 2 * kPadH - 2);
+    lv_label_set_long_mode(proj, LV_LABEL_LONG_DOT);
+    ui_on_click(b, on_tap, (void *)(uintptr_t)i);
+
+    // Ponta: contorno na cor do aviso, miolo surface por cima (cobre a borda).
+    lv_obj_t *line = ui_icon(wrap, &icon_tail_line_8, color);
+    lv_obj_set_pos(line, 0, y + (kH - 14) / 2);
+    lv_obj_t *fill = ui_icon(wrap, &icon_tail_fill_8, theme::SURFACE);
+    lv_obj_set_pos(fill, 0, y + (kH - 14) / 2);
+  }
+  return wrap;
 }

@@ -1,6 +1,7 @@
 #include "display.h"
 
 #include "board_pins.h"
+#include "util/early_alloc.h"
 #include "util/log.h"
 
 static const char *TAG = "display";
@@ -12,7 +13,10 @@ TFT_eSPI tft;
 #define DISP_BUF_LINES 24
 
 static lv_disp_draw_buf_t draw_buf;
-static lv_color_t disp_buf[BOARD_DISPLAY_WIDTH * DISP_BUF_LINES];
+// No heap (util/early_alloc), não na .bss: com o Wi-Fi a DRAM estática não
+// cabe na região do linker.
+static constexpr size_t kDispBufPx = BOARD_DISPLAY_WIDTH * DISP_BUF_LINES;
+static lv_color_t *disp_buf = nullptr;
 static lv_disp_drv_t disp_drv;
 
 void display_init() {
@@ -46,7 +50,8 @@ static void flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *colo
 }
 
 void display_lvgl_init() {
-  lv_disp_draw_buf_init(&draw_buf, disp_buf, nullptr, BOARD_DISPLAY_WIDTH * DISP_BUF_LINES);
+  disp_buf = (lv_color_t *)early_alloc(kDispBufPx * sizeof(lv_color_t));
+  lv_disp_draw_buf_init(&draw_buf, disp_buf, nullptr, kDispBufPx);
   lv_disp_drv_init(&disp_drv);
   disp_drv.hor_res = BOARD_DISPLAY_WIDTH;
   disp_drv.ver_res = BOARD_DISPLAY_HEIGHT;
@@ -54,5 +59,5 @@ void display_lvgl_init() {
   disp_drv.draw_buf = &draw_buf;
   lv_disp_drv_register(&disp_drv);
   LOG_I(TAG, "LVGL: buffer parcial de %d linhas (%u bytes)", DISP_BUF_LINES,
-        (unsigned)sizeof(disp_buf));
+        (unsigned)(kDispBufPx * sizeof(lv_color_t)));
 }

@@ -11,3 +11,5 @@ void power_tick();
 void power_set_level(uint8_t percent);
 // Volta ao brilho normal dos Ajustes.
 void power_use_normal_level();
+// Acende a tela (se apagada) e zera o tempo sem toque. Avisos do Claude Code.
+void power_wake();

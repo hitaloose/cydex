@@ -1,0 +1,65 @@
+{
+  "hooks": {
+    "Notification": [
+      {
+        "matcher": "permission_prompt|idle_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -c '{hook_event_name, notification_type, message, cwd, session_id, last_assistant_message: ((.last_assistant_message // \"\")[0:400])}' | curl -4 -s -m 5 -o /dev/null -H \"Authorization: Bearer $CYDEX_KEY\" -H \"Content-Type: application/json\" --data-binary @- http://cydex.local/hook || true",
+            "async": true,
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -c '{hook_event_name, notification_type, message, cwd, session_id, last_assistant_message: ((.last_assistant_message // \"\")[0:400])}' | curl -4 -s -m 5 -o /dev/null -H \"Authorization: Bearer $CYDEX_KEY\" -H \"Content-Type: application/json\" --data-binary @- http://cydex.local/hook || true",
+            "async": true,
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -c '{hook_event_name, notification_type, message, cwd, session_id, last_assistant_message: ((.last_assistant_message // \"\")[0:400])}' | curl -4 -s -m 5 -o /dev/null -H \"Authorization: Bearer $CYDEX_KEY\" -H \"Content-Type: application/json\" --data-binary @- http://cydex.local/hook || true",
+            "async": true,
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolBatch": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -c '{hook_event_name, notification_type, message, cwd, session_id, last_assistant_message: ((.last_assistant_message // \"\")[0:400])}' | curl -4 -s -m 5 -o /dev/null -H \"Authorization: Bearer $CYDEX_KEY\" -H \"Content-Type: application/json\" --data-binary @- http://cydex.local/hook || true",
+            "async": true,
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -c '{hook_event_name, notification_type, message, cwd, session_id, last_assistant_message: ((.last_assistant_message // \"\")[0:400])}' | curl -4 -s -m 5 -o /dev/null -H \"Authorization: Bearer $CYDEX_KEY\" -H \"Content-Type: application/json\" --data-binary @- http://cydex.local/hook || true",
+            "async": true,
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

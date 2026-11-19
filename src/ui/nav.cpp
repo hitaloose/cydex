@@ -22,6 +22,9 @@ static lv_obj_t *build(Screen s) {
     case Screen::Settings: return settings_screen_create();
     case Screen::SettingsShowcase: return settings_showcase_screen_create();
     case Screen::SettingsSystem: return settings_system_screen_create();
+    case Screen::SettingsWifi: return settings_wifi_screen_create();
+    case Screen::WifiInfo: return wifi_info_screen_create();
+    case Screen::WifiPassword: return wifi_password_screen_create();
     case Screen::Detail: return detail_screen_create();
     case Screen::Showcase: return showcase_screen_create();
   }

@@ -170,3 +170,15 @@ lv_obj_t *ui_chip(lv_obj_t *parent, const char *text, uint32_t bg, uint32_t fg, 
   lv_obj_align(l, LV_ALIGN_LEFT_MID, 0, 0);
   return chip;
 }
+
+void ui_label_clamp(lv_obj_t *label, lv_coord_t w, uint8_t max_lines) {
+  const lv_font_t *font = lv_obj_get_style_text_font(label, LV_PART_MAIN);
+  lv_coord_t line_space = lv_obj_get_style_text_line_space(label, LV_PART_MAIN);
+  lv_point_t size;
+  lv_txt_get_size(&size, lv_label_get_text(label), font, 0, line_space, w, LV_TEXT_FLAG_NONE);
+  lv_coord_t line_h = lv_font_get_line_height(font);
+  lv_coord_t max_h = (lv_coord_t)(line_h * max_lines + line_space * (max_lines - 1));
+  lv_obj_set_width(label, w);
+  lv_label_set_long_mode(label, LV_LABEL_LONG_DOT);
+  lv_obj_set_height(label, size.y < max_h ? size.y : max_h);
+}

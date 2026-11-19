@@ -1,6 +1,10 @@
 #include "Settings.h"
 
 #include <Preferences.h>
+#include <esp_random.h>
+
+#include <cstdio>
+#include <cstring>
 
 #include "logic/Showcase.h"
 #include "util/log.h"
@@ -23,6 +27,10 @@ static const char *KEY_SC_RAND = "sc_rand";
 static const char *KEY_SC_ALL = "sc_all";
 static const char *KEY_SC_BRIGHT = "sc_bright";
 static const char *KEY_SC_BOOT = "sc_boot";
+static const char *KEY_WIFI_ON = "wifi_on";
+static const char *KEY_WIFI_SSID = "wifi_ssid";
+static const char *KEY_WIFI_PASS = "wifi_pass";
+static const char *KEY_HOOK_KEY = "hook_key";
 
 static AppSettings s_settings;
 
@@ -50,6 +58,15 @@ void settings_init() {
   s.showcase_brightness =
       clamp_pct(p.isKey(KEY_SC_BRIGHT) ? p.getUChar(KEY_SC_BRIGHT) : d.showcase_brightness, 5);
   s.showcase_on_boot = p.isKey(KEY_SC_BOOT) ? p.getBool(KEY_SC_BOOT) : d.showcase_on_boot;
+  s.wifi_on = p.isKey(KEY_WIFI_ON) ? p.getBool(KEY_WIFI_ON) : d.wifi_on;
+  if (p.isKey(KEY_WIFI_SSID)) p.getString(KEY_WIFI_SSID, s.wifi_ssid, sizeof(s.wifi_ssid));
+  if (p.isKey(KEY_WIFI_PASS)) p.getString(KEY_WIFI_PASS, s.wifi_pass, sizeof(s.wifi_pass));
+  if (p.isKey(KEY_HOOK_KEY)) p.getString(KEY_HOOK_KEY, s.hook_key, sizeof(s.hook_key));
+  if (strlen(s.hook_key) != 8) {
+    // 1o boot: chave do hook com 32 bits do RNG de hardware.
+    snprintf(s.hook_key, sizeof(s.hook_key), "%08lx", (unsigned long)esp_random());
+    p.putString(KEY_HOOK_KEY, s.hook_key);
+  }
   p.end();
   i18n_set_lang(i18n_lang_from_code(code.c_str()));
   LOG_I(TAG, "idioma=%s brilho=%u som=%u grade=%u apagar=%umin vitrine=%us/%s/%s/%u%%%s",
@@ -57,6 +74,7 @@ void settings_init() {
         s.showcase_interval_s, s.showcase_random ? "aleat" : "seq",
         s.showcase_all_seen ? "vistos" : "capt", s.showcase_brightness,
         s.showcase_on_boot ? " (abre no boot)" : "");
+  LOG_I(TAG, "wifi=%s rede=\"%s\"", s.wifi_on ? "ligado" : "desligado", s.wifi_ssid);
 }
 
 AppSettings &settings() { return s_settings; }
@@ -75,6 +93,16 @@ void settings_save() {
   p.putBool(KEY_SC_ALL, s.showcase_all_seen);
   p.putUChar(KEY_SC_BRIGHT, s.showcase_brightness);
   p.putBool(KEY_SC_BOOT, s.showcase_on_boot);
+  p.end();
+}
+
+void settings_save_wifi() {
+  const AppSettings &s = s_settings;
+  Preferences p;
+  p.begin(NS, false);
+  p.putBool(KEY_WIFI_ON, s.wifi_on);
+  p.putString(KEY_WIFI_SSID, s.wifi_ssid);
+  p.putString(KEY_WIFI_PASS, s.wifi_pass);
   p.end();
 }
 

@@ -14,6 +14,7 @@
 #include "screens.h"
 #include "ui/catalog.h"
 #include "ui/icons/icons.h"
+#include "ui/keyboard.h"
 #include "ui/theme.h"
 #include "ui/widgets.h"
 
@@ -24,21 +25,11 @@ constexpr lv_coord_t kHitsH = 28;
 constexpr lv_coord_t kKbY = kHitsY + kHitsH;
 constexpr uint8_t kMaxHits = 3;
 
-// Larguras relativas do canvas (flex) x5, porque o flex_grow do LVGL é inteiro.
-constexpr uint8_t kKeyGrow = 5, kBackspaceGrow = 8, kModeGrow = 8, kSpaceGrow = 25, kSeeGrow = 12;
-
-const char *const kLetters[3] = {"QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM-"};
-// Os nomes só usam espaço ' - . : (♀/♂ viram " F"/" M" no build_sd.py) e a
-// busca ignora pontuação; o 123 fica com dígitos e esses sinais.
-const char *const kDigits[3] = {"1234567890", "-.':", ""};
-
 char s_text[SEARCH_MAX + 1];
-bool s_digits_mode;
 Screen s_back;
 lv_obj_t *s_field;
 lv_obj_t *s_hits_row;
 lv_obj_t *s_count;
-lv_obj_t *s_keyboard;
 
 void on_back(lv_event_t *) { nav_go(s_back); }
 
@@ -100,15 +91,14 @@ void type_char(char ch) {
   refresh();
 }
 
-void on_key(lv_event_t *e) {
-  char ch = (char)(uintptr_t)lv_event_get_user_data(e);
+void on_key(char ch) {
   if (ch >= 'A' && ch <= 'Z') ch = (char)(ch - 'A' + 'a');
   type_char(ch);
 }
 
-void on_space(lv_event_t *) { type_char(' '); }
+void on_space() { type_char(' '); }
 
-void on_backspace(lv_event_t *) {
+void on_backspace() {
   size_t len = strlen(s_text);
   if (len == 0) return;
   s_text[len - 1] = '\0';
@@ -121,7 +111,7 @@ void on_clear(lv_event_t *) {
   refresh();
 }
 
-void on_see(lv_event_t *) {
+void on_see() {
   // "Ver" vira filtro da Lista/Grade: só a busca, status volta pra Todos.
   CatalogState &cs = catalog_state();
   SearchKey key;
@@ -133,70 +123,6 @@ void on_see(lv_event_t *) {
   nav_go(cs.view);
 }
 
-void build_keyboard();
-void on_mode(lv_event_t *) {
-  s_digits_mode = !s_digits_mode;
-  build_keyboard();
-}
-
-lv_obj_t *key(lv_obj_t *row, uint8_t grow, uint32_t bg) {
-  lv_obj_t *k = ui_box(row);
-  lv_obj_set_height(k, 40);
-  lv_obj_set_flex_grow(k, grow);
-  lv_obj_set_style_radius(k, 4, 0);
-  lv_obj_set_style_bg_color(k, c(bg), 0);
-  lv_obj_set_style_bg_color(k, c(theme::FAINT_2), LV_STATE_PRESSED);
-  lv_obj_set_style_bg_opa(k, LV_OPA_COVER, 0);
-  return k;
-}
-
-lv_obj_t *key_row(lv_obj_t *kb, lv_coord_t pad_hor) {
-  lv_obj_t *row = ui_box(kb);
-  lv_obj_set_size(row, LV_PCT(100), 40);
-  lv_obj_set_style_pad_hor(row, pad_hor, 0);
-  lv_obj_set_style_pad_column(row, 2, 0);
-  lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-  return row;
-}
-
-void build_keyboard() {
-  lv_obj_clean(s_keyboard);
-  const char *const *rows = s_digits_mode ? kDigits : kLetters;
-  for (uint8_t r = 0; r < 3; r++) {
-    // 2a linha do QWERTY recuada 15 px dos dois lados (canvas).
-    lv_obj_t *row = key_row(s_keyboard, (r == 1 && !s_digits_mode) ? 15 : 0);
-    for (const char *p = rows[r]; *p; p++) {
-      lv_obj_t *k = key(row, kKeyGrow, theme::SURFACE_2);
-      char text[2] = {*p, '\0'};
-      lv_obj_center(ui_label(k, &font_14_600, theme::TEXT, text));
-      ui_on_click(k, on_key, (void *)(uintptr_t)(unsigned char)*p);
-    }
-    if (r == 2) {
-      if (rows[r][0] == '\0') {
-        // Linha só com o apagar: espaçador mantém a tecla do tamanho de sempre.
-        lv_obj_t *sp = ui_box(row);
-        lv_obj_set_height(sp, 1);
-        lv_obj_set_flex_grow(sp, 8 * kKeyGrow);
-      }
-      lv_obj_t *bs = key(row, kBackspaceGrow, theme::LINE);
-      lv_obj_center(ui_icon(bs, &icon_backspace_18, theme::TEXT));
-      ui_on_click(bs, on_backspace);
-    }
-  }
-  lv_obj_t *row = key_row(s_keyboard, 0);
-  lv_obj_t *mode = key(row, kModeGrow, theme::LINE);
-  lv_obj_center(ui_label(mode, &font_12_700, theme::TEXT,
-                         tr(s_digits_mode ? STR_SEARCH_MODE_ABC : STR_SEARCH_MODE_NUM)));
-  ui_on_click(mode, on_mode);
-  lv_obj_t *space = key(row, kSpaceGrow, theme::SURFACE_2);
-  lv_obj_center(ui_label(space, &font_12_600, theme::MUTED, tr(STR_SEARCH_SPACE)));
-  ui_on_click(space, on_space);
-  lv_obj_t *see = key(row, kSeeGrow, theme::ACCENT);
-  lv_obj_set_style_bg_color(see, c(theme::TEXT), LV_STATE_PRESSED);
-  lv_obj_center(ui_label(see, &font_14_700, theme::ON_ACCENT, tr(STR_SEARCH_SEE)));
-  ui_on_click(see, on_see);
-}
-
 }  // namespace
 
 lv_obj_t *search_screen_create() {
@@ -204,7 +130,6 @@ lv_obj_t *search_screen_create() {
   if (s_back != Screen::List && s_back != Screen::Grid) s_back = Screen::Menu;
   // Abre com a busca ativa, se houver (dá pra refinar o que já foi filtrado).
   snprintf(s_text, sizeof(s_text), "%s", catalog_state().query.text);
-  s_digits_mode = false;
 
   lv_obj_t *scr = ui_screen();
 
@@ -270,16 +195,11 @@ lv_obj_t *search_screen_create() {
   ui_header_spacer(hits);
   s_count = ui_label(hits, &font_12_500, theme::MUTED, "");
 
-  // Teclado.
-  s_keyboard = ui_box(scr);
-  lv_obj_set_pos(s_keyboard, 0, kKbY);
-  lv_obj_set_size(s_keyboard, 320, 240 - kKbY);
-  lv_obj_set_style_bg_color(s_keyboard, c(theme::SURFACE_DIM), 0);
-  lv_obj_set_style_bg_opa(s_keyboard, LV_OPA_COVER, 0);
-  lv_obj_set_style_pad_all(s_keyboard, 2, 0);
-  lv_obj_set_style_pad_row(s_keyboard, 2, 0);
-  lv_obj_set_flex_flow(s_keyboard, LV_FLEX_FLOW_COLUMN);
-  build_keyboard();
+  // Teclado (ui/keyboard).
+  lv_obj_t *kb = ui_box(scr);
+  lv_obj_set_pos(kb, 0, kKbY);
+  lv_obj_set_size(kb, 320, 240 - kKbY);
+  keyboard_create(kb, KbLayout::Search, STR_SEARCH_SEE, {on_key, on_space, on_backspace, on_see});
 
   refresh();
   return scr;
