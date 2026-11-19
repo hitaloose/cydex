@@ -1,0 +1,13 @@
+#pragma once
+
+#include <cstdint>
+
+// Brilho e "apagar tela" (Ajustes 05). Telas pedem o brilho por aqui, não
+// direto no backlight, pra que acordar volte ao nível certo.
+void power_init();
+// Chamar no loop: apaga a tela depois do tempo sem toque (nunca na Vitrine).
+void power_tick();
+// Nível atual (%): o normal dos Ajustes ou o da Vitrine.
+void power_set_level(uint8_t percent);
+// Volta ao brilho normal dos Ajustes.
+void power_use_normal_level();

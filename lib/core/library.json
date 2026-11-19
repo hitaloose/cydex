@@ -1,0 +1,7 @@
+{
+  "name": "cydex-core",
+  "version": "0.1.0",
+  "description": "Lógica do CYDex sem dependência de Arduino (parsers de save, formato do SD, paginação).",
+  "frameworks": "*",
+  "platforms": "*"
+}
