@@ -12,6 +12,7 @@
 #include "logic/Format.h"
 #include "logic/NumberInput.h"
 #include "logic/Pager.h"
+#include "logic/RowPages.h"
 #include "logic/Search.h"
 #include "logic/Showcase.h"
 #include "saves/SaveFormat.h"
@@ -537,6 +538,63 @@ void test_gen3_corrupt_is_rejected() {
   TEST_ASSERT_EQUAL(0, st.count_seen());
 }
 
+// ---------- RowPages (Ajustes) ----------
+
+void test_row_pages_single() {
+  const uint16_t h[4] = {34, 34, 34, 34};
+  RowPages rp = row_pages(h, 4, 208, 170);
+  TEST_ASSERT_EQUAL(1, rp.count);
+  TEST_ASSERT_FALSE(rp.paged());
+  TEST_ASSERT_EQUAL(0, rp.first(0));
+  TEST_ASSERT_EQUAL(4, rp.end(0));
+  // 6 x 34 = 204 cabe sem rodapé.
+  const uint16_t six[6] = {34, 34, 34, 34, 34, 34};
+  TEST_ASSERT_EQUAL(1, row_pages(six, 6, 208, 170).count);
+  // Vazio: uma página sem linhas.
+  RowPages e = row_pages(h, 0, 208, 170);
+  TEST_ASSERT_EQUAL(1, e.count);
+  TEST_ASSERT_EQUAL(0, e.end(0));
+}
+
+void test_row_pages_paged() {
+  uint16_t h[7];
+  for (auto &v : h) v = 34;
+  RowPages rp = row_pages(h, 7, 208, 170);  // 7 x 34 = 238 > 208
+  TEST_ASSERT_EQUAL(2, rp.count);
+  TEST_ASSERT_TRUE(rp.paged());
+  TEST_ASSERT_EQUAL(5, rp.end(0));  // 5 x 34 = 170 com rodapé
+  TEST_ASSERT_EQUAL(5, rp.first(1));
+  TEST_ASSERT_EQUAL(7, rp.end(1));
+  TEST_ASSERT_EQUAL(0, rp.page_of(4));
+  TEST_ASSERT_EQUAL(1, rp.page_of(5));
+  TEST_ASSERT_EQUAL(1, rp.page_of(6));
+}
+
+void test_row_pages_mixed_heights() {
+  // Linha alta (52) empurra a seguinte pra próxima página.
+  const uint16_t h[6] = {34, 34, 34, 34, 52, 34};
+  RowPages rp = row_pages(h, 6, 208, 170);
+  TEST_ASSERT_EQUAL(2, rp.count);
+  TEST_ASSERT_EQUAL(4, rp.end(0));  // 4 x 34 = 136; + 52 = 188 > 170
+  TEST_ASSERT_EQUAL(6, rp.end(1));
+  // Linha maior que a página fica sozinha.
+  const uint16_t big[3] = {200, 200, 34};
+  RowPages b = row_pages(big, 3, 208, 170);
+  TEST_ASSERT_EQUAL(3, b.count);
+  TEST_ASSERT_EQUAL(1, b.end(0));
+  TEST_ASSERT_EQUAL(2, b.end(1));
+  TEST_ASSERT_EQUAL(3, b.end(2));
+}
+
+void test_showcase_eligible() {
+  // (visto, capturado)
+  TEST_ASSERT_TRUE(showcase_eligible(ShowcaseSource::Caught, true, true));
+  TEST_ASSERT_FALSE(showcase_eligible(ShowcaseSource::Caught, true, false));
+  TEST_ASSERT_TRUE(showcase_eligible(ShowcaseSource::Seen, true, false));
+  TEST_ASSERT_FALSE(showcase_eligible(ShowcaseSource::Seen, false, false));
+  TEST_ASSERT_TRUE(showcase_eligible(ShowcaseSource::All, false, false));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_generation_boundaries);
@@ -562,6 +620,10 @@ int main() {
   RUN_TEST(test_showcase_next);
   RUN_TEST(test_showcase_shift_and_cycle);
   RUN_TEST(test_showcase_fit);
+  RUN_TEST(test_showcase_eligible);
+  RUN_TEST(test_row_pages_single);
+  RUN_TEST(test_row_pages_paged);
+  RUN_TEST(test_row_pages_mixed_heights);
   RUN_TEST(test_number_input);
   RUN_TEST(test_gen3_merge_dex);
   RUN_TEST(test_gen3_tolerates_trailing_bytes_and_rejects_other_sizes);

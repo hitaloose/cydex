@@ -40,6 +40,9 @@ const PATHS = {
   shift: '<path d="M12 4l8 8h-4.5v7h-7v-7H4z"/>',
   shield: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M12 9v4"/><path d="M12 16h.01"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  compass: '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>',
+  chip: '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/>',
   check_circle: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9"/>',
 };
 
@@ -50,7 +53,10 @@ const ICONS = [
   ["refresh_18", "refresh", 18, 2.4],
   ["monitor_14", "monitor", 14, 2.2],
   ["monitor_16", "monitor", 16, 2.2],
-  ["globe_16", "globe", 16, 2.2],
+  ["globe_16", "globe", 16, 2.2],        // Sistema › Idioma
+  ["sun_16", "sun", 16, 2.2],            // Ajustes › Tela e som
+  ["compass_16", "compass", 16, 2.2],    // Ajustes › Navegação
+  ["chip_16", "chip", 16, 2.2],          // Ajustes › Sistema
   ["list_26", "list", 26, 2.2],
   ["list_18", "list", 18, 2.2],
   ["grid_18", "grid", 18, 2.2],

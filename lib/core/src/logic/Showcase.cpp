@@ -58,3 +58,12 @@ uint16_t showcase_fit_zoom(uint16_t opaque_w, uint16_t avail) {
   uint32_t z = (uint32_t)avail * 256 / opaque_w;
   return z > 512 ? 512 : (uint16_t)z;
 }
+
+bool showcase_eligible(ShowcaseSource src, bool seen, bool caught) {
+  switch (src) {
+    case ShowcaseSource::Caught: return caught;
+    case ShowcaseSource::Seen: return seen || caught;
+    case ShowcaseSource::All: return true;
+  }
+  return caught;
+}

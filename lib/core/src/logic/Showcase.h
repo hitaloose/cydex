@@ -17,6 +17,12 @@ extern const uint16_t SHOWCASE_INTERVALS_S[SHOWCASE_INTERVAL_COUNT];
 constexpr uint8_t SCREEN_OFF_COUNT = 5;
 extern const uint16_t SCREEN_OFF_MIN[SCREEN_OFF_COUNT];
 
+// Mostrar: quais espécies entram na vitrine. O valor fica na NVS (sc_src).
+enum class ShowcaseSource : uint8_t { Caught = 0, Seen = 1, All = 2 };
+constexpr uint8_t SHOWCASE_SOURCE_COUNT = 3;
+// Espécie entra na vitrine? "Todos" inclui as não vistas.
+bool showcase_eligible(ShowcaseSource src, bool seen, bool caught);
+
 // Próxima posição na lista de espécies da vitrine (`count` itens).
 // Sequencial: current+1, dando a volta. Aleatória: usa `rnd` e nunca repete a
 // atual quando há mais de uma. `current` = -1 na primeira escolha.

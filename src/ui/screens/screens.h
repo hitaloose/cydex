@@ -2,6 +2,9 @@
 
 #include <lvgl.h>
 
+#include "i18n/i18n.h"
+#include "ui/nav.h"
+
 // Cada função monta a tela inteira e devolve o objeto de tela. Quem chama é
 // nav_go(). Recursos próprios (sprites, timers) são liberados no
 // LV_EVENT_DELETE da tela.
@@ -19,9 +22,28 @@ lv_obj_t *detail_screen_create();
 lv_obj_t *search_screen_create();
 lv_obj_t *types_screen_create();
 lv_obj_t *progress_screen_create();
+// Ajustes em árvore (05 raiz, 05a Tela e som, 05f Navegação, 05b Modo vitrine,
+// 05c Sistema) + 05g Escolha, genérica.
 lv_obj_t *settings_screen_create();
+lv_obj_t *settings_display_screen_create();
+lv_obj_t *settings_navigation_screen_create();
 lv_obj_t *settings_showcase_screen_create();
 lv_obj_t *settings_system_screen_create();
+lv_obj_t *settings_choice_screen_create();
+
+// 05g Escolha: uma linha por opção, ✓ na atual. Tocar chama pick(i) (gravar
+// aqui) e volta pra `back`. `label`/`hint` são chamados ao montar cada linha
+// (o texto é copiado na hora, então podem usar um buffer estático).
+struct ChoiceSpec {
+  StrId title;
+  uint8_t count;
+  uint8_t selected;
+  const char *(*label)(uint8_t i);
+  const char *(*hint)(uint8_t i);  // muted à direita; nullptr = nada
+  void (*pick)(uint8_t i);
+  Screen back;
+};
+void settings_choice_open(const ChoiceSpec &spec);
 lv_obj_t *showcase_screen_create();
 // Balões dos avisos do Claude Code sobre a Vitrine (15b): até 3, na ordem dada
 // (o mais importante em cima). `on_tap` no toque de um balão, com o índice em
@@ -32,8 +54,6 @@ lv_obj_t *showcase_show_notices(const Notice *items, uint8_t count, lv_event_cb_
 lv_obj_t *settings_wifi_screen_create();
 lv_obj_t *wifi_info_screen_create();
 lv_obj_t *wifi_password_screen_create();
-#include "ui/nav.h"
-
 // Motivo mostrado na tela de erro (definido pelo Boot).
 enum class SdErrorReason : uint8_t { NoCard, NoData };
 void sd_error_set_reason(SdErrorReason r);

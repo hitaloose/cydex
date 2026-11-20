@@ -15,7 +15,7 @@ struct AppSettings {
   uint16_t screen_off_min = 2;      // SCREEN_OFF_MIN (logic/Showcase.h); 0 = nunca
   uint16_t showcase_interval_s = 60;  // SHOWCASE_INTERVALS_S
   bool showcase_random = false;
-  bool showcase_all_seen = false;   // false = só capturados
+  uint8_t showcase_source = 0;      // ShowcaseSource (logic/Showcase.h): 0 capt, 1 vistos, 2 todos
   uint8_t showcase_brightness = 35;  // 5..100 %
   bool showcase_on_boot = false;    // Boot vai direto pra Vitrine
   // Wi-Fi (05d) e avisos do Claude Code. Gravados por settings_save_wifi().
