@@ -18,9 +18,12 @@ Nome: **CYDex** (CYD + dex, lê-se "sai-dex"). Não usar "Poké"/"Pokémon" no n
 | 02 | `ErroSD.dc.html` | Sem cartão SD | Botão "Tentar de novo" (44 px). Pede FAT32 |
 | 03 | `Menu.dc.html` | Menu | Barra de capturados (312/1025), tile grande Lista + Buscar, Tipos, Progresso, Ajustes; botão "Vitrine" no topo. Sem indicador de SD (sem cartão o aparelho não passa do Boot) |
 | 04 | `Progresso.dc.html` | Progresso | Anel de % capturados + barras por geração (I–IX) |
-| 05 | `Ajustes.dc.html` | Ajustes | Brilho, som ao tocar, abrir em Lista/Grade, apagar tela, Modo vitrine ›, Sistema › |
-| 05b | `AjustesVitrine.dc.html` | Ajustes › Modo vitrine | Intervalo, ordem, fonte das espécies, brilho próprio, iniciar ao ligar; ▶ no cabeçalho inicia a vitrine |
-| 05c | `AjustesSistema.dc.html` | Ajustes › Sistema | Idioma (uma linha de 34 px por idioma, nome escrito no próprio idioma, troca na hora) + linha "Wi-Fi ›" (rede atual) + Cartão SD (registros, saves, "Recarregar") |
+| 05 | `Ajustes.dc.html` | Ajustes (raiz) | Uma linha "›" por grupo, com resumo: Tela e som, Navegação, Modo vitrine, Sistema. Versão no cabeçalho |
+| 05a | `AjustesTela.dc.html` | Ajustes › Tela e som | Brilho, brilho na vitrine (prévia enquanto arrasta), apagar tela, som ao tocar |
+| 05f | `AjustesNavegacao.dc.html` | Ajustes › Navegação | Catálogo em Lista/Grade, ao ligar Menu/Vitrine (segmentados na linha) |
+| 05b | `AjustesVitrine.dc.html` | Ajustes › Modo vitrine | Troca a cada, ordem, Mostrar › (Escolha: capturados/vistos/todos) + resumo do ciclo; ▶ no cabeçalho inicia a vitrine |
+| 05c | `AjustesSistema.dc.html` | Ajustes › Sistema | Wi-Fi › (rede atual), Idioma › (Escolha), Cartão SD (registros, saves, "Recarregar", 52 px) |
+| 05g | `AjustesEscolha.dc.html` | Ajustes › Escolha | Genérica: uma linha de 34 px por opção, dica muted à direita, ✓ na atual; tocar grava e volta. Pagina com 6+ (tweak mostra Idioma com 2 páginas) |
 | 05d | `AjustesWiFi.dc.html` | Ajustes › Sistema › Wi-Fi | Interruptor + estado, 4 redes por página (barras de sinal, cadeado, ✓ e "Esquecer" na atual, que fica no topo), ↻ busca de novo, ⓘ abre 05d'. Rodapé de paginação sem "Ir para" |
 | 05d' | `AjustesWiFiInfo.dc.html` | Wi-Fi › Conexão | cydex.local, IP, chave do hook e como configurar no computador |
 | 05e | `WiFiSenha.dc.html` | Wi-Fi › Senha | Campo mascarado (olho mostra), faixa com rede + estado, teclado abc/ABC/123/#+= (só ASCII). "Conectar" vira "Pronto" quando conecta |
@@ -34,7 +37,7 @@ Nome: **CYDex** (CYD + dex, lê-se "sai-dex"). Não usar "Poké"/"Pokémon" no n
 | 11 | `DetalheStatus.dc.html` | Ficha: Status | 6 barras (PS, Atq, Def, AtE, DfE, Vel) + total |
 | 12 | `DetalheEvol.dc.html` | Ficha: Evolução | Até 3 estágios 64×64 com nível entre eles |
 | 13 | `NaoVisto.dc.html` | Ficha: não visto | Tudo "???", abas Status/Evolução desativadas |
-| 14 | `Vitrine.dc.html` | Modo vitrine | Palco de 164 px (sprite até 2×) + painel fixo de 144 px: nome em 1 linha de 20 px com "…", tipos lado a lado, medidas, mini status; toque sai pro Menu |
+| 14 | `Vitrine.dc.html` | Modo vitrine | Palco de 164 px (sprite até 2×) + painel fixo de 144 px: nome em 1 linha de 20 px com "…", tipos lado a lado, medidas, mini status; toque sai pro Menu. Tweak `naoVisto`: só nº, nome e sprite, o resto "???" |
 | 15 | `Aviso.dc.html` | Aviso do Claude Code | Faixa de 56 px por cima de qualquer tela com o aviso mais importante: barra na cor do tipo, ícone, título, "projeto · mensagem" (2 linhas), "+n" dos outros. Toque fecha |
 | 15b | `VitrineAviso.dc.html` | Avisos na Vitrine | Até 3 balões compactos de 162×50 (tipo + projeto) saindo do sprite, o mais importante em cima; toque num balão fecha só ele |
 
@@ -110,10 +113,12 @@ Status de espécie: círculo cheio accent com check = **capturado**; contorno mu
 - A Ficha (`screens/detail_screen.cpp`) é uma tela só para as 4 artboards (10–13): cada aba é um painel que se esconde ou aparece, sem reler o SD. O registro é lido ao abrir, o sprite 96 é alocado primeiro (é o maior bloco) e os 64 da Evolução só na primeira vez que a aba abre. ‹ › usam `catalog_neighbors` na lista filtrada e mantêm a aba (`CatalogState::tab`). As regras que o canvas não mostra estão na nota "Ficha: regras" do canvas.
 - Busca e Tipos voltam pra tela de onde vieram (`nav_previous()`). As regras completas estão na nota "Busca e Tipos" do canvas. O `catalog_header()` monta o cabeçalho da Lista e da Grade, com o chip quando `CatalogQuery::refined()`.
 - `ui/keyboard.*` é o teclado de 40 px da Busca (layout `Search`) e da Senha do Wi-Fi (layout `Text`). Um por vez, estado em estáticos.
-- Ajustes (05, 05b, 05c): os valores ficam em `AppSettings` (`data/Settings`, NVS). As peças comuns (slider, interruptor, segmentado, "− valor +", linha "›") estão em `ui/settings_widgets.*`. Os sliders aplicam na hora e só gravam ao soltar.
+- Ajustes (05, 05a, 05b, 05c, 05f, 05g): árvore de menus, uma tela por artboard. ‹ sobe um nível. Os valores ficam em `AppSettings` (`data/Settings`, NVS). As peças comuns (slider, interruptor, segmentado, "− valor +", linha "›") estão em `ui/settings_widgets.*`. Os sliders aplicam na hora e só gravam ao soltar.
+- Cada tela de Ajustes descreve as linhas numa tabela `SettingsRow` (altura + função que monta) e chama `settings_page()` (`ui/settings_page.*`): se tudo cabe nos 208 px, uma página sem rodapé; senão páginas de 170 px com o `pager_bar` (só "pág X de Y"). A quebra é `RowPages` (`logic/RowPages`, testada). Linha nova num grupo = uma entrada na tabela; a paginação vem sozinha.
+- Escolha com 2 opções curtas fica na linha (segmentado). Com 3+ ou nomes longos, a linha "›" chama `settings_choice_open(ChoiceSpec)` (05g): título, `label`/`hint` por índice, `pick` grava, `back` é a tela que volta.
 - `ui/power.*` cuida do brilho, do "apagar tela" e do som ao tocar. As telas pedem brilho por `power_set_level()`, nunca direto no backlight. O 1º toque com a tela apagada só acende. Na Vitrine a tela nunca apaga. O som é um clique de 12 ms no alto-falante (GPIO 26, canal 2 do ledc, porque os canais 0 e 1 dividem o timer do backlight).
 - A versão ("CYDex v0.1") fica em `include/version.h`.
-- A lógica sem LVGL fica em `lib/core/src/logic/` (`Pager`, `HoldRepeat`, `Catalog`, `NumberInput`, `Format`, `Search`, `Showcase`, `TextFit`), `notify/` (`HookJson`, `Notice`, `NoticeBoard`) e `net/` (`HttpRequest`, `WifiList`), e tem testes nativos.
+- A lógica sem LVGL fica em `lib/core/src/logic/` (`Pager`, `HoldRepeat`, `RowPages`, `Catalog`, `NumberInput`, `Format`, `Search`, `Showcase`, `TextFit`), `notify/` (`HookJson`, `Notice`, `NoticeBoard`) e `net/` (`HttpRequest`, `WifiList`), e tem testes nativos.
 - O LVGL 8 não tem `margin`. Usar um invólucro com padding.
 - Sem tema padrão do LVGL (`LV_USE_THEME_DEFAULT 0`): todo widget é estilizado à mão a partir dos tokens.
 
@@ -130,9 +135,9 @@ Status de espécie: círculo cheio accent com check = **capturado**; contorno mu
 - Ajustes (salvos na NVS com `Preferences`, lidos ao entrar):
   - troca a cada: 30 s, 1, 2, 5 ou 15 min (padrão 1 min)
   - ordem: sequencial ou aleatória
-  - mostrar: só capturados ou todos vistos
-  - brilho próprio da vitrine (padrão 35%)
-  - iniciar ao ligar (padrão desligado): o Boot vai direto pra Vitrine em vez do Menu
+  - mostrar: capturados, vistos ou todos (as 1025; `showcase_source`, chave `sc_src`, lê a antiga `sc_all` se faltar). Não vista mostra só nº, nome e sprite; tipos, medidas e status ficam "???", sombra neutra
+  - brilho próprio da vitrine (padrão 35%), em Ajustes › Tela e som
+  - ao ligar: Menu ou Vitrine (padrão Menu), em Ajustes › Navegação
 - Redesenha a tela inteira só na troca; entre trocas nada muda.
 - Desloca o layout 1–2 px a cada troca (evitar retenção de imagem no LCD).
 - Mini status: 6 barras sem rótulo na ordem PS, Atq, Def, AtE, DfE, Vel, escala até 150, valores ≥ 60 em accent, "Total N" em cima.
@@ -174,5 +179,3 @@ Status de espécie: círculo cheio accent com check = **capturado**; contorno mu
 
 - Troca entre aparelhos via ESP-NOW.
 - App do lado do PC (Linux, macOS e Windows): mandar saves pro CYDex pelo Wi-Fi e rodar em segundo plano no lugar dos scripts de hoje (apagar/acender junto com o computador, hoje `tools/cydex_power_watch.swift` + LaunchAgent, só no Mac).
-- Pendente: ajustar a tela de Ajustes (05).
-- Pendente: na Vitrine, a opção "mostrar" ganha "todos" (as 1025 espécies, inclusive as não vistas), além de "só capturados" e "todos vistos".

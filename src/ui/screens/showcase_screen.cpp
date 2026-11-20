@@ -4,6 +4,8 @@
 //     inteiros), com os pés no fundo do palco
 //   painel de 144 px à direita: #nº, nome (1 linha, "…"), tipos lado a lado,
 //     medidas, status, mini status
+//   Mostrar "Todos" inclui as não vistas: só nº, nome e sprite; tipos, medidas
+//     e status viram "???" (canvas: tweak naoVisto)
 //   tocar em qualquer lugar volta pro Menu
 // Só redesenha na troca (timer do intervalo dos Ajustes); entre trocas nada
 // muda. Cada troca desloca tudo 1–2 px (anti-retenção). Brilho próprio
@@ -48,10 +50,10 @@ lv_obj_t *s_scr;
 
 void build_list() {
   const DexStatus &st = status_store_get();
-  bool all_seen = settings().showcase_all_seen;
+  ShowcaseSource src = (ShowcaseSource)settings().showcase_source;
   s_count = 0;
   for (uint16_t n = 1; n <= species_repo_count(); n++) {
-    if (all_seen ? st.is_seen(n) : st.is_caught(n)) s_list[s_count++] = n;
+    if (showcase_eligible(src, st.is_seen(n), st.is_caught(n))) s_list[s_count++] = n;
   }
 }
 
@@ -68,6 +70,8 @@ void show(uint16_t n) {
 
   SpeciesRecord rec;
   bool have = species_repo_get(n, &rec);
+  SpeciesState state = status_store_get().state(n);
+  bool unseen = state == SpeciesState::Unknown;  // só com Mostrar "Todos"
   int8_t dx, dy;
   showcase_shift(s_shift_k++, &dx, &dy);
   lv_obj_set_pos(s_stage, kStageX + dx, kStageY + dy);
@@ -77,7 +81,9 @@ void show(uint16_t n) {
   // elipse) na cor do tipo 1, a ~18%.
   SpeciesType t1 = have ? rec.type1 : SpeciesType::None;
   if (t1 != SpeciesType::None) {
-    lv_obj_t *floor = ui_icon(s_stage, &icon_floor_140, species_type_color(t1));
+    // Não vista: sombra neutra (a cor entregaria o tipo).
+    uint32_t tint = unseen ? theme::FAINT : species_type_color(t1);
+    lv_obj_t *floor = ui_icon(s_stage, &icon_floor_140, tint);
     lv_obj_set_pos(floor, (kStageW - kFloorW) / 2, kStageH - 14 - kFloorH);
     lv_obj_set_style_img_opa(floor, 46, 0);
   }
@@ -109,14 +115,22 @@ void show(uint16_t n) {
   lv_obj_set_style_pad_row(types, 4, 0);
   lv_obj_set_style_pad_column(types, 4, 0);
   lv_obj_set_flex_flow(types, LV_FLEX_FLOW_ROW_WRAP);  // desce só se a dupla não couber
-  if (have) {
+  if (unseen) {
+    lv_obj_t *chip = ui_chip(types, tr(STR_UNKNOWN_NAME), theme::BG, theme::MUTED);
+    lv_obj_set_style_border_width(chip, 1, 0);
+    lv_obj_set_style_border_color(chip, c(theme::FAINT), 0);
+  } else if (have) {
     for (SpeciesType t : {rec.type1, rec.type2}) {
       if (t != SpeciesType::None)
         ui_chip(types, species_type_name(t), species_type_color(t), theme::ON_ACCENT);
     }
   }
 
-  if (have) {
+  if (unseen) {
+    char line[44];
+    snprintf(line, sizeof(line), "%s m · %s kg", tr(STR_UNKNOWN_NAME), tr(STR_UNKNOWN_NAME));
+    spaced(ui_label(s_panel, &font_12_500, theme::MUTED, line), 6);
+  } else if (have) {
     char h[12], w[12], hs[20], ws[20], line[44];
     format_tenths(rec.height_dm, tr(STR_DECIMAL_SEP), h, sizeof(h));
     format_tenths(rec.weight_hg, tr(STR_DECIMAL_SEP), w, sizeof(w));
@@ -126,7 +140,6 @@ void show(uint16_t n) {
     spaced(ui_label(s_panel, &font_12_500, theme::MUTED, line), 6);
   }
 
-  SpeciesState state = status_store_get().state(n);
   bool caught = state == SpeciesState::Caught;
   lv_obj_t *st = spaced(ui_box(s_panel), 2);
   lv_obj_set_size(st, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
@@ -134,8 +147,9 @@ void show(uint16_t n) {
   lv_obj_set_flex_flow(st, LV_FLEX_FLOW_ROW);
   lv_obj_set_flex_align(st, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
   ui_status_mark_set(ui_status_mark(st, 12), state);
-  ui_label(st, &font_12_700, caught ? theme::ACCENT : theme::TEXT,
-           tr(caught ? STR_STATE_CAUGHT : STR_STATE_SEEN));
+  ui_label(st, caught ? &font_12_700 : &font_12_600,
+           caught ? theme::ACCENT : unseen ? theme::MUTED : theme::TEXT,
+           tr(caught ? STR_STATE_CAUGHT : unseen ? STR_STATE_UNSEEN : STR_STATE_SEEN));
 
   lv_obj_t *grow = ui_box(s_panel);
   lv_obj_set_width(grow, 1);
@@ -143,13 +157,14 @@ void show(uint16_t n) {
 
   // Mini status: PS..Vel sem rótulo, escala 150, >= 60 em accent.
   lv_obj_t *total = ui_label(s_panel, &font_12_600, theme::MUTED, "");
-  lv_label_set_text_fmt(total, tr(STR_SC_TOTAL_FMT), have ? rec.stat_total() : 0);
+  if (unseen) lv_label_set_text(total, tr(STR_SC_TOTAL_UNKNOWN));
+  else lv_label_set_text_fmt(total, tr(STR_SC_TOTAL_FMT), have ? rec.stat_total() : 0);
   lv_obj_t *bars = spaced(ui_box(s_panel), 5);
   lv_obj_set_size(bars, kPanelW, LV_SIZE_CONTENT);
   lv_obj_set_style_pad_row(bars, 4, 0);
   lv_obj_set_flex_flow(bars, LV_FLEX_FLOW_COLUMN);
   for (int i = 0; i < SPECIES_STAT_COUNT; i++) {
-    uint8_t v = have ? rec.stats[i] : 0;
+    uint8_t v = have && !unseen ? rec.stats[i] : 0;  // não vista: trilhos vazios
     lv_obj_t *bar = ui_progress(bars, kPanelW, 5);
     lv_obj_set_style_bg_color(bar, c(v >= 60 ? theme::ACCENT : theme::TEXT), LV_PART_INDICATOR);
     ui_progress_set(bar, v > 150 ? 150 : v, 150);
@@ -194,7 +209,8 @@ lv_obj_t *showcase_screen_create() {
     lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(col, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     ui_label(col, &font_14_600, theme::MUTED,
-             tr(settings().showcase_all_seen ? STR_SC_EMPTY_SEEN : STR_SC_EMPTY_CAUGHT));
+             tr(settings().showcase_source == (uint8_t)ShowcaseSource::Caught ? STR_SC_EMPTY_CAUGHT
+                                                                              : STR_SC_EMPTY_SEEN));
     ui_label(col, &font_12_500, theme::FAINT, tr(STR_SC_EMPTY_HINT));
     return scr;
   }

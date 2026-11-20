@@ -24,7 +24,8 @@ static const char *KEY_GRID = "open_grid";
 static const char *KEY_OFF = "off_min";
 static const char *KEY_SC_INT = "sc_int";
 static const char *KEY_SC_RAND = "sc_rand";
-static const char *KEY_SC_ALL = "sc_all";
+static const char *KEY_SC_ALL = "sc_all";  // antiga (bool vistos); lida só se não houver sc_src
+static const char *KEY_SC_SRC = "sc_src";
 static const char *KEY_SC_BRIGHT = "sc_bright";
 static const char *KEY_SC_BOOT = "sc_boot";
 static const char *KEY_WIFI_ON = "wifi_on";
@@ -54,7 +55,10 @@ void settings_init() {
   s.showcase_interval_s =
       SHOWCASE_INTERVALS_S[option_index(SHOWCASE_INTERVALS_S, SHOWCASE_INTERVAL_COUNT, iv)];
   s.showcase_random = p.isKey(KEY_SC_RAND) ? p.getBool(KEY_SC_RAND) : d.showcase_random;
-  s.showcase_all_seen = p.isKey(KEY_SC_ALL) ? p.getBool(KEY_SC_ALL) : d.showcase_all_seen;
+  if (p.isKey(KEY_SC_SRC)) s.showcase_source = p.getUChar(KEY_SC_SRC);
+  else if (p.isKey(KEY_SC_ALL)) s.showcase_source = p.getBool(KEY_SC_ALL) ? 1 : 0;
+  else s.showcase_source = d.showcase_source;
+  if (s.showcase_source >= SHOWCASE_SOURCE_COUNT) s.showcase_source = d.showcase_source;
   s.showcase_brightness =
       clamp_pct(p.isKey(KEY_SC_BRIGHT) ? p.getUChar(KEY_SC_BRIGHT) : d.showcase_brightness, 5);
   s.showcase_on_boot = p.isKey(KEY_SC_BOOT) ? p.getBool(KEY_SC_BOOT) : d.showcase_on_boot;
@@ -72,7 +76,8 @@ void settings_init() {
   LOG_I(TAG, "idioma=%s brilho=%u som=%u grade=%u apagar=%umin vitrine=%us/%s/%s/%u%%%s",
         i18n_lang_code(i18n_lang()), s.brightness, s.sound, s.open_grid, s.screen_off_min,
         s.showcase_interval_s, s.showcase_random ? "aleat" : "seq",
-        s.showcase_all_seen ? "vistos" : "capt", s.showcase_brightness,
+        s.showcase_source == 2 ? "todos" : s.showcase_source == 1 ? "vistos" : "capt",
+        s.showcase_brightness,
         s.showcase_on_boot ? " (abre no boot)" : "");
   LOG_I(TAG, "wifi=%s rede=\"%s\"", s.wifi_on ? "ligado" : "desligado", s.wifi_ssid);
 }
@@ -90,7 +95,7 @@ void settings_save() {
   p.putUShort(KEY_OFF, s.screen_off_min);
   p.putUShort(KEY_SC_INT, s.showcase_interval_s);
   p.putBool(KEY_SC_RAND, s.showcase_random);
-  p.putBool(KEY_SC_ALL, s.showcase_all_seen);
+  p.putUChar(KEY_SC_SRC, s.showcase_source);
   p.putUChar(KEY_SC_BRIGHT, s.showcase_brightness);
   p.putBool(KEY_SC_BOOT, s.showcase_on_boot);
   p.end();

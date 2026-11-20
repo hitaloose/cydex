@@ -1,17 +1,15 @@
 // 05 Ajustes (canvas: Ajustes.dc.html; regras na nota "Ajustes: regras").
-//   linhas de 34 px: Brilho, Som ao tocar, Abrir em, Apagar tela,
-//   Modo vitrine ›, Sistema › (a última ocupa o resto da altura)
+//   raiz da árvore: uma linha "›" por grupo, com o resumo do que tem dentro
+//   Tela e som (05a) · Navegação (05f) · Modo vitrine (05b) · Sistema (05c)
 #include <cstdio>
 
 #include "data/Settings.h"
 #include "i18n/i18n.h"
-#include "logic/Showcase.h"
+#include "net/wifi_mgr.h"
 #include "screens.h"
-#include "ui/catalog.h"
 #include "ui/icons/icons.h"
-#include "ui/power.h"
+#include "ui/settings_page.h"
 #include "ui/settings_widgets.h"
-#include "ui/theme.h"
 #include "ui/widgets.h"
 
 // "1 min" / "30 s": também usado no 05b.
@@ -20,90 +18,72 @@ void format_interval(uint16_t seconds, char *out, size_t size) {
   else snprintf(out, size, tr(STR_SET_MINUTES_FMT), seconds / 60);
 }
 
+// "2 min" / "nunca": 05 e 05a.
+void format_screen_off(uint16_t minutes, char *out, size_t size) {
+  if (minutes == 0) snprintf(out, size, "%s", tr(STR_SET_NEVER));
+  else snprintf(out, size, tr(STR_SET_MINUTES_FMT), minutes);
+}
+
 namespace {
 
-constexpr lv_coord_t kRowH = 34;
-const StrId kViews[2] = {STR_TITLE_LIST, STR_TITLE_GRID};
-
-lv_obj_t *s_views;
-Stepper s_off;
+uint8_t s_page;
 
 void on_back(lv_event_t *) { nav_go(Screen::Menu); }
-
-void on_brightness(lv_event_t *e) {
-  uint8_t v = (uint8_t)lv_slider_get_value(lv_event_get_target(e));
-  settings().brightness = v;
-  power_set_level(v);
-}
-
-void on_save(lv_event_t *) { settings_save(); }
-
-void on_sound(lv_event_t *e) {
-  settings().sound = set_switch_get(lv_event_get_current_target(e));
-  settings_save();
-}
-
-void on_view(lv_event_t *e) {
-  uint8_t i = (uint8_t)(uintptr_t)lv_event_get_user_data(e);
-  settings().open_grid = i == 1;
-  catalog_state().view = i == 1 ? Screen::Grid : Screen::List;
-  set_segmented_select(s_views, i);
-  settings_save();
-}
-
-void refresh_off() {
-  uint16_t m = settings().screen_off_min;
-  char text[16];
-  if (m == 0) snprintf(text, sizeof(text), "%s", tr(STR_SET_NEVER));
-  else snprintf(text, sizeof(text), tr(STR_SET_MINUTES_FMT), m);
-  uint8_t i = option_index(SCREEN_OFF_MIN, SCREEN_OFF_COUNT, m);
-  set_stepper_update(s_off, text, i == 0, i == SCREEN_OFF_COUNT - 1);
-}
-
-void on_off_step(lv_event_t *e) {
-  int8_t dir = (int8_t)(intptr_t)lv_event_get_user_data(e);
-  settings().screen_off_min = option_step(SCREEN_OFF_MIN, SCREEN_OFF_COUNT,
-                                          settings().screen_off_min, dir);
-  refresh_off();
-  settings_save();
-}
-
+void on_display(lv_event_t *) { nav_go(Screen::SettingsDisplay); }
+void on_navigation(lv_event_t *) { nav_go(Screen::SettingsNavigation); }
 void on_showcase(lv_event_t *) { nav_go(Screen::SettingsShowcase); }
 void on_system(lv_event_t *) { nav_go(Screen::SettingsSystem); }
+
+void row_display(lv_obj_t *body, lv_coord_t y, lv_coord_t h, uint8_t) {
+  const AppSettings &st = settings();
+  char off[16], summary[32];
+  format_screen_off(st.screen_off_min, off, sizeof(off));
+  snprintf(summary, sizeof(summary), "%u%% · %s", st.brightness, off);
+  set_link_row(body, y, h, &icon_sun_16, STR_SET_DISPLAY, summary, on_display, true);
+}
+
+void row_navigation(lv_obj_t *body, lv_coord_t y, lv_coord_t h, uint8_t) {
+  const AppSettings &st = settings();
+  char summary[48];
+  snprintf(summary, sizeof(summary), "%s · %s", tr(st.open_grid ? STR_TITLE_GRID : STR_TITLE_LIST),
+           tr(st.showcase_on_boot ? STR_TITLE_SHOWCASE : STR_SET_BOOT_MENU));
+  set_link_row(body, y, h, &icon_compass_16, STR_SET_NAVIGATION, summary, on_navigation, true);
+}
+
+void row_showcase(lv_obj_t *body, lv_coord_t y, lv_coord_t h, uint8_t) {
+  const AppSettings &st = settings();
+  char interval[16], summary[48];
+  format_interval(st.showcase_interval_s, interval, sizeof(interval));
+  snprintf(summary, sizeof(summary), "%s · %s", interval,
+           tr(st.showcase_random ? STR_SC_ORDER_RAND_SHORT : STR_SC_ORDER_SEQ_SHORT));
+  set_link_row(body, y, h, &icon_monitor_16, STR_TITLE_SETTINGS_SHOWCASE, summary, on_showcase,
+               true);
+}
+
+void row_system(lv_obj_t *body, lv_coord_t y, lv_coord_t h, uint8_t) {
+  char summary[64];
+  const char *lang = i18n_lang_name(i18n_lang());
+  if (wifi_state() == WifiState::Connected) snprintf(summary, sizeof(summary), "%s · %s", lang, wifi_ssid());
+  else snprintf(summary, sizeof(summary), "%s", lang);
+  lv_obj_t *row = set_link_row(body, y, h, &icon_chip_16, STR_SET_SYSTEM, summary, on_system, true);
+  // Nome de rede comprido não empurra a seta pra fora.
+  lv_obj_t *l = lv_obj_get_child(row, 3);
+  lv_obj_set_style_max_width(l, 170, 0);
+  lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+}
+
+const SettingsRow kRows[] = {
+    {SETTINGS_ROW_H, row_display},
+    {SETTINGS_ROW_H, row_navigation},
+    {SETTINGS_ROW_H, row_showcase},
+    {SETTINGS_ROW_H, row_system},
+};
 
 }  // namespace
 
 lv_obj_t *settings_screen_create() {
-  const AppSettings &st = settings();
   lv_obj_t *scr = ui_screen();
   set_header_version(ui_header(scr, tr(STR_TITLE_SETTINGS), on_back));
-
-  lv_coord_t y = theme::HEADER_H;
-  lv_obj_t *row = set_row(scr, y, kRowH);
-  set_label(row, STR_SET_BRIGHTNESS);
-  set_slider(row, 10, 100, st.brightness, on_brightness, on_save);
-
-  row = set_row(scr, y += kRowH, kRowH);
-  set_label(row, STR_SET_SOUND);
-  set_switch(row, st.sound, on_sound);
-
-  row = set_row(scr, y += kRowH, kRowH);
-  set_label(row, STR_SET_OPEN_IN);
-  s_views = set_segmented(row, kViews, 2, st.open_grid ? 1 : 0, on_view);
-
-  row = set_row(scr, y += kRowH, kRowH);
-  set_label(row, STR_SET_SCREEN_OFF);
-  s_off = set_stepper(row, 52, on_off_step);
-  refresh_off();
-
-  char summary[48], interval[16];
-  format_interval(st.showcase_interval_s, interval, sizeof(interval));
-  snprintf(summary, sizeof(summary), "%s · %s", interval,
-           tr(st.showcase_random ? STR_SC_ORDER_RAND_SHORT : STR_SC_ORDER_SEQ_SHORT));
-  set_link_row(scr, y += kRowH, kRowH, &icon_monitor_16, STR_TITLE_SETTINGS_SHOWCASE, summary,
-               on_showcase, true);
-  y += kRowH;
-  set_link_row(scr, y, 240 - y, &icon_globe_16, STR_SET_SYSTEM, i18n_lang_name(i18n_lang()),
-               on_system, false);
+  settings_page(scr, kRows, sizeof(kRows) / sizeof(kRows[0]), &s_page);
   return scr;
 }

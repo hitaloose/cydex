@@ -114,6 +114,10 @@ typedef enum {
   STR_SET_SECONDS_FMT,
   STR_SET_NEVER,
   STR_SET_SYSTEM,
+  STR_SET_DISPLAY,        /* grupo Tela e som (05a) */
+  STR_SET_NAVIGATION,     /* grupo Navegação (05f) */
+  STR_SET_SC_BRIGHTNESS,  /* brilho da vitrine, em Tela e som */
+  STR_SET_BOOT_MENU,      /* "Ao ligar": Menu | Vitrine */
 
   /* Ajustes › Modo vitrine */
   STR_SC_INTERVAL,
@@ -124,6 +128,7 @@ typedef enum {
   STR_SC_ORDER_RAND_SHORT,
   STR_SC_SHOW,
   STR_SC_SHOW_SEEN,
+  STR_SC_SHOW_ALL,
   STR_SC_START,
   STR_SC_ON_BOOT,
   STR_SC_SUMMARY_H_FMT,
@@ -137,6 +142,7 @@ typedef enum {
 
   /* Vitrine */
   STR_SC_TOTAL_FMT,
+  STR_SC_TOTAL_UNKNOWN,  /* espécie não vista na Vitrine */
   STR_SC_EMPTY_CAUGHT,
   STR_SC_EMPTY_SEEN,
   STR_SC_EMPTY_HINT,
