@@ -6,11 +6,15 @@
 #include "hal/backlight.h"
 #include "hal/speaker.h"
 #include "hal/touch.h"
+#include "net/hook_server.h"
 #include "ui/nav.h"
 #include "util/log.h"
 
 static uint8_t s_level = 70;
 static bool s_asleep = false;
+// O computador dormiu (POST /sleep). Enquanto houver aviso aberto a tela fica
+// acesa; quando o último fecha, apaga de novo. Toque ou /wake desfazem.
+static bool s_remote = false;
 static bool s_swallow = false;  // engole o toque que acordou até o dedo sair
 
 static void wake() {
@@ -22,6 +26,7 @@ static void wake() {
 
 static bool touch_filter(bool pressed) {
   if (s_asleep && pressed) {
+    s_remote = false;  // quem tocou quer usar o CYD
     wake();
     s_swallow = true;
   }
@@ -50,8 +55,18 @@ void power_set_level(uint8_t percent) {
 
 void power_use_normal_level() { power_set_level(settings().brightness); }
 
+static void remote_off() {
+  s_asleep = true;
+  backlight_set(0);
+  LOG_I("power", "tela apagada (computador dormindo, sem avisos)");
+}
+
 void power_tick() {
   speaker_update();
+  if (s_remote) {
+    if (!s_asleep && hook_notices().size() == 0) remote_off();
+    return;
+  }
   uint16_t minutes = settings().screen_off_min;
   if (s_asleep || minutes == 0 || nav_current() == Screen::Showcase) return;
   if (lv_disp_get_inactive_time(nullptr) >= (uint32_t)minutes * 60000u) {
@@ -59,6 +74,16 @@ void power_tick() {
     backlight_set(0);
     LOG_I("power", "tela apagada (%u min sem toque)", minutes);
   }
+}
+
+void power_remote_sleep() {
+  s_remote = true;
+  if (!s_asleep && hook_notices().size() == 0) remote_off();
+}
+
+void power_remote_wake() {
+  s_remote = false;
+  power_wake();
 }
 
 void power_wake() {

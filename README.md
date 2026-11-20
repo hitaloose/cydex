@@ -82,6 +82,27 @@ Quando você responde no Claude (manda uma mensagem, aprova uma permissão ou fe
 
 O hook passa o JSON por `jq` (que vem no macOS) pra mandar só o que o CYD usa, em menos de 1 KB, e envia com `curl -4` e `async: true`. Ele roda em segundo plano, nunca segura o Claude e, se o CYD estiver desligado, só falha sem dizer nada. O `-4` é necessário: o CYD só tem IPv4, e sem ele o macOS espera 5 s pela resposta IPv6 do `cydex.local`. Com o nome em vez do IP, o hook continua funcionando quando o roteador der outro IP ao CYD.
 
+### 4. Apagar junto com o Mac (opcional)
+
+Com o Wi-Fi ligado, o CYD apaga a tela quando a tela do Mac apaga (ou o Mac dorme) e acende quando ele acorda. Vale até na Vitrine. Um toque acende como sempre.
+
+1. Grave a chave num arquivo que só você lê (o LaunchAgent não vê o `~/.zshrc`):
+
+   ```sh
+   printf 'CYDEX_KEY=a1b2c3d4\n' > ~/.cydex && chmod 600 ~/.cydex
+   ```
+
+2. Compile o vigia (precisa do Xcode ou das Command Line Tools):
+
+   ```sh
+   swiftc -O tools/cydex_power_watch.swift -o tools/cydex-power-watch
+   ```
+
+3. Copie [`tools/cydex-power.plist.example`](tools/cydex-power.plist.example) para `~/Library/LaunchAgents/local.cydex.power.plist`, troque `/CAMINHO/DO/cydex` pelo caminho do repositório e carregue com `launchctl load ~/Library/LaunchAgents/local.cydex.power.plist`.
+4. Teste: `pmset displaysleepnow` apaga o CYD; mexer no mouse acende. O log fica em `/tmp/cydex-power.log`. Sem o Mac: `CYDEX_KEY=... tools/cydex_notify.sh sleep` (ou `wake`).
+
+O vigia ouve as notificações de tela e de descanso do macOS e chama `tools/cydex_power.sh`. Ao acordar, o script tenta por ~20 s, enquanto o Wi-Fi do Mac volta. (O `sleepwatcher` não serve: no macOS atual ele não recebe os eventos de tela.)
+
 ## Desenvolvimento
 
 ```sh

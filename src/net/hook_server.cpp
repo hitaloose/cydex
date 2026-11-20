@@ -7,6 +7,7 @@
 #include "data/Settings.h"
 #include "net/HttpRequest.h"
 #include "notify/HookJson.h"
+#include "ui/power.h"
 #include "util/log.h"
 #include "version.h"
 
@@ -61,6 +62,11 @@ static void reply(int code, const char *reason, const char *body = nullptr) {
   s_busy = false;
 }
 
+// Caminhos que pedem a chave: o hook e o apagar/acender junto com o computador.
+static bool needs_key(const char *path) {
+  return strcmp(path, "/hook") == 0 || strcmp(path, "/sleep") == 0 || strcmp(path, "/wake") == 0;
+}
+
 static void on_body(void *, const char *data, size_t len) { s_json.feed(data, len); }
 
 static void finish() {
@@ -71,7 +77,7 @@ static void finish() {
     reply(200, "OK", "{\"name\":\"CYDex\",\"version\":\"" CYDEX_VERSION "\"}");
     return;
   }
-  if (strcmp(path, "/hook") != 0) {
+  if (!needs_key(path)) {
     reply(404, "Not Found");
     return;
   }
@@ -82,6 +88,14 @@ static void finish() {
   if (strcmp(s_req.bearer(), settings().hook_key) != 0) {
     LOG_I(TAG, "chave errada de %s", s_client.remoteIP().toString().c_str());
     reply(401, "Unauthorized");
+    return;
+  }
+  if (strcmp(path, "/sleep") == 0 || strcmp(path, "/wake") == 0) {
+    bool sleep = path[1] == 's';
+    LOG_I(TAG, "computador %s", sleep ? "dormiu" : "acordou");
+    if (sleep) power_remote_sleep();
+    else power_remote_wake();
+    reply(204, "No Content");
     return;
   }
   if (!s_json.done()) {
@@ -140,7 +154,7 @@ void hook_server_tick() {
         reply(413, "Payload Too Large");
         return;
       }
-      if (strcmp(s_req.path(), "/hook") == 0 && strcmp(s_req.bearer(), settings().hook_key) != 0) {
+      if (needs_key(s_req.path()) && strcmp(s_req.bearer(), settings().hook_key) != 0) {
         LOG_I(TAG, "chave errada de %s", s_client.remoteIP().toString().c_str());
         reply(401, "Unauthorized");
         return;

@@ -167,10 +167,12 @@ Status de espécie: círculo cheio accent com check = **capturado**; contorno mu
 - `net/wifi_mgr`: estado `Off/Idle/Connecting/Connected/Failed`, busca assíncrona, reconexão com espera de 5 s → 60 s, `WiFi.persistent(false)` (rede e senha ficam em `AppSettings`, gravadas por `settings_save_wifi()` só quando a conexão dá certo). As telas comparam `wifi_version()` num timer de 250 ms e só redesenham quando muda.
 - Avisos abertos ficam no `NoticeBoard` (lib/core, dono: `hook_server`): **um por chat** (`session_id`; sem sessão, o projeto), até 4, ordenados por importância (permissão > esperando > terminou; empate: o mais antigo antes). O novo do mesmo chat substitui o anterior; o mesmo tipo do mesmo chat em 3 s conta uma vez. `ui/notice_center` só desenha o quadro quando a `version()` muda: fora da Vitrine é a faixa do 1º em `lv_layer_top()` ("+n" = os outros; sobrevive ao `nav_go`); na Vitrine são até 3 balões compactos (`showcase_show_notices()`, tipo + projeto, sem a mensagem). Toque fecha o tocado. Aviso aceito chama `power_wake()` e `speaker_chime()` (se "Som ao tocar").
 - Texto de fora passa por `text_fit()` (`logic/TextFit`): tira markdown, junta espaços, troca o que a fonte não tem (`font_has_glyph`, a mesma tabela do `test_i18n`) e corta com "…".
+- `POST /sleep` e `POST /wake` (mesma chave, sem corpo, 204) apagam e acendem a tela junto com o Mac: o vigia `tools/cydex_power_watch.swift` (LaunchAgent em `tools/cydex-power.plist.example`) chama `tools/cydex_power.sh` (chave em `~/.cydex`). O `sleepwatcher` não recebe os eventos de tela no macOS atual, e o vigia precisa do `NSApplication` iniciado pra receber as notificações do `NSWorkspace`. Apagar é só o backlight (`power_remote_sleep()`), vale até na Vitrine. Com aviso aberto não apaga; aviso novo acende só o CYD e, quando o último fecha, apaga de novo. Toque com a tela apagada ou `/wake` saem do modo.
 - Wi-Fi vem desligado de fábrica. **Sem modem sleep** (`WiFi.setSleep(false)`): com ele o ping ia a 300–850 ms e um pacote perdido segurava o POST por 3–5 s.
 
 ## Futuro / em aberto
 
 - Troca entre aparelhos via ESP-NOW.
+- App do lado do PC (Linux, macOS e Windows): mandar saves pro CYDex pelo Wi-Fi e rodar em segundo plano no lugar dos scripts de hoje (apagar/acender junto com o computador, hoje `tools/cydex_power_watch.swift` + LaunchAgent, só no Mac).
 - Pendente: ajustar a tela de Ajustes (05).
 - Pendente: na Vitrine, a opção "mostrar" ganha "todos" (as 1025 espécies, inclusive as não vistas), além de "só capturados" e "todos vistos".

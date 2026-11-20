@@ -13,3 +13,8 @@ void power_set_level(uint8_t percent);
 void power_use_normal_level();
 // Acende a tela (se apagada) e zera o tempo sem toque. Avisos do Claude Code.
 void power_wake();
+// O computador dormiu (POST /sleep): apaga a tela, até na Vitrine, mas não
+// enquanto houver aviso aberto. Aviso novo acende só o CYD e, quando o último
+// fecha, apaga de novo. Toque (usar o CYD) ou POST /wake saem desse modo.
+void power_remote_sleep();
+void power_remote_wake();

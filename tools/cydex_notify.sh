@@ -1,7 +1,7 @@
 #!/bin/sh
 # Manda um aviso de teste pro CYD, igual ao que o hook do Claude Code manda.
 #
-#   CYDEX_KEY=a1b2c3d4 tools/cydex_notify.sh permission|idle|stop|clear|approve|big|ping
+#   CYDEX_KEY=a1b2c3d4 tools/cydex_notify.sh permission|idle|stop|clear|approve|big|ping|sleep|wake
 #
 # clear = você respondeu (UserPromptSubmit): fecha os avisos do chat ($CYDEX_SESSION, padrão "teste").
 # approve = aprovou a permissão (PostToolBatch): fecha só o "precisa de permissão".
@@ -17,6 +17,12 @@ SESSION="${CYDEX_SESSION:-teste}"
 CWD="$(pwd)"
 
 case "$KIND" in
+  sleep|wake)
+    # Apaga/acende a tela, como o Mac faz ao dormir/acordar (tools/cydex_power.sh).
+    curl -4 -sS -m 3 -o /dev/null -w '%{http_code}\n' -X POST \
+      -H "Authorization: Bearer ${CYDEX_KEY:-}" "http://$HOST/$KIND"
+    exit 0
+    ;;
   ping)
     curl -4 -sS -m 3 "http://$HOST/"
     echo
@@ -44,7 +50,7 @@ case "$KIND" in
     BODY='{"session_id":"'"$SESSION"'","cwd":"'"$CWD"'","hook_event_name":"Stop","last_assistant_message":"Long answer '"$FILLER"'"}'
     ;;
   *)
-    echo "uso: $0 permission|idle|stop|clear|approve|big|ping" >&2
+    echo "uso: $0 permission|idle|stop|clear|approve|big|ping|sleep|wake" >&2
     exit 2
     ;;
 esac

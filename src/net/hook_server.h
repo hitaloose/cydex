@@ -10,6 +10,9 @@
 //               204 sem corpo (o Claude Code lê corpo vazio como "seguir";
 //               nunca bloqueia um Stop), 401 com chave errada, 400 JSON ruim,
 //               413 com corpo > 16 KB (recusado sem ler).
+//   POST /sleep, /wake  mesma chave, sem corpo: apaga a tela (até na Vitrine)
+//               ou acende. O Mac manda quando dorme/acorda (tools/cydex_power.sh).
+//               204.
 //   GET  /      {"name":"CYDex","version":"0.1"} (teste com curl)
 //
 // Um cliente por vez, lido aos poucos a cada hook_server_tick() (no loop,
