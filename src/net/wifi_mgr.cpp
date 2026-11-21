@@ -130,10 +130,14 @@ static void on_connected() {
   }
   if (MDNS.begin(kHostname)) {
     MDNS.addService("http", "tcp", 80);
+    // O app do PC (desktop/) filtra por isso na descoberta.
+    MDNS.addServiceTxt("http", "tcp", "app", "cydex");
     s_mdns = true;
   } else {
     LOG_E(TAG, "mDNS não subiu");
   }
+  // Relógio em UTC pela rede: a data dos saves enviados pela API (FAT) sai certa.
+  configTime(0, 0, "pool.ntp.org", "time.google.com");
   notice_server_start();
   set_state(WifiState::Connected);
   LOG_I(TAG, "conectado em \"%s\", ip=%s (http://%s.local) heap=%u maior_bloco=%u", s_ssid, s_ip,

@@ -30,7 +30,8 @@ SaveList s_list;  // estático: ~2 KB fora da pilha
 // e abrir outro arquivo nesse momento trava a lib SD (achado no PokEsp).
 void collect(const char *name, size_t size, uint32_t mtime, void *user) {
   SaveList *l = (SaveList *)user;
-  if (l->count >= kMaxSaves) return;
+  // "._x.sav" é o AppleDouble que o macOS cria no cartão: não é save.
+  if (l->count >= kMaxSaves || name[0] == '.') return;
   strncpy(l->names[l->count], name, kMaxName - 1);
   l->names[l->count][kMaxName - 1] = '\0';
   l->count++;

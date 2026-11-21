@@ -388,7 +388,7 @@ void test_http_delete_with_query() {
   TEST_ASSERT_TRUE(http_query_param(r.query(), "tag", tag, sizeof(tag)));
   TEST_ASSERT_EQUAL_STRING("permission", tag);
 
-  std::string longp = "GET /notices/" + std::string(60, 'a') + " HTTP/1.1\r\n\r\n";
+  std::string longp = "GET /saves/" + std::string(130, 'a') + " HTTP/1.1\r\n\r\n";
   r.reset();
   r.feed(longp.data(), longp.size(), nullptr, nullptr);
   TEST_ASSERT_TRUE(r.failed());

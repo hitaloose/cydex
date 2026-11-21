@@ -39,7 +39,7 @@ class HttpRequest {
   uint8_t line_len_;
   bool line_overflow_;
   char method_[8];
-  char path_[64];   // /notices/<id de 40>
+  char path_[128];  // /notices/<id de 40>, /saves/<nome de 64 em %XX>
   char query_[48];
   char bearer_[48];
   int32_t content_length_;

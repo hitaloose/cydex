@@ -16,6 +16,7 @@
 #include "logic/Search.h"
 #include "logic/Showcase.h"
 #include "saves/SaveFormat.h"
+#include "saves/SaveName.h"
 #include "saves/gen3/Gen3Sections.h"
 #include "utils/ByteUtils.h"
 
@@ -595,6 +596,41 @@ void test_showcase_eligible() {
   TEST_ASSERT_TRUE(showcase_eligible(ShowcaseSource::All, false, false));
 }
 
+// ---------- SaveName ----------
+
+void test_save_name_decodes_and_accepts() {
+  char out[SAVE_NAME_MAX + 1];
+  TEST_ASSERT_TRUE(save_name_decode("emerald.sav", out, sizeof(out)));
+  TEST_ASSERT_EQUAL_STRING("emerald.sav", out);
+  TEST_ASSERT_TRUE(save_name_decode("Pokemon%20-%20Emerald%20Version%20(USA).SAV", out, sizeof(out)));
+  TEST_ASSERT_EQUAL_STRING("Pokemon - Emerald Version (USA).SAV", out);
+  TEST_ASSERT_TRUE(save_name_decode("fire+red.srm", out, sizeof(out)));
+  TEST_ASSERT_EQUAL_STRING("fire red.srm", out);
+}
+
+void test_save_name_rejects() {
+  char out[SAVE_NAME_MAX + 1];
+  TEST_ASSERT_FALSE(save_name_decode("", out, sizeof(out)));
+  TEST_ASSERT_FALSE(save_name_decode(".sav", out, sizeof(out)));
+  TEST_ASSERT_FALSE(save_name_decode(".hidden.sav", out, sizeof(out)));
+  TEST_ASSERT_FALSE(save_name_decode("%20a.sav", out, sizeof(out)));
+  TEST_ASSERT_FALSE(save_name_decode("game.gba", out, sizeof(out)));
+  TEST_ASSERT_FALSE(save_name_decode("..%2Fcydex%2Fspecies.sav", out, sizeof(out)));
+  TEST_ASSERT_FALSE(save_name_decode("a\\b.sav", out, sizeof(out)));
+  TEST_ASSERT_FALSE(save_name_decode("bad%zz.sav", out, sizeof(out)));
+  TEST_ASSERT_FALSE(save_name_decode("bad%.sav", out, sizeof(out)));
+  TEST_ASSERT_FALSE(save_name_decode("acento%C3%A9.sav", out, sizeof(out)));
+  char longname[80];
+  memset(longname, 'a', 61);
+  strcpy(longname + 61, ".sav");  // 65 bytes
+  TEST_ASSERT_FALSE(save_name_decode(longname, out, sizeof(out)));
+  longname[60] = '\0';
+  strcpy(longname + 60, ".sav");  // 64 bytes
+  TEST_ASSERT_TRUE(save_name_decode(longname, out, sizeof(out)));
+  char tiny[8];
+  TEST_ASSERT_FALSE(save_name_decode("emerald.sav", tiny, sizeof(tiny)));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_generation_boundaries);
@@ -628,5 +664,7 @@ int main() {
   RUN_TEST(test_gen3_merge_dex);
   RUN_TEST(test_gen3_tolerates_trailing_bytes_and_rejects_other_sizes);
   RUN_TEST(test_gen3_corrupt_is_rejected);
+  RUN_TEST(test_save_name_decodes_and_accepts);
+  RUN_TEST(test_save_name_rejects);
   return UNITY_END();
 }

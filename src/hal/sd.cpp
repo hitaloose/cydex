@@ -1,6 +1,10 @@
 #include "sd.h"
 
 #include <SD.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+#include <cstdio>
 #include <cstring>
 
 #include "board_pins.h"
@@ -9,8 +13,14 @@
 static const char *TAG = "sd";
 static bool s_present = false;
 static File s_read;
-static char s_read_path[64];
+static char s_read_path[96];  // /saves/<nome de até 64>
 static size_t s_read_size = 0;
+// Escrita por open()/write() POSIX, não por SD.open: o FIL já foi reservado na
+// montagem (max_files), e o File do Arduino + o FILE* do stdio pediam ~2 KB a
+// mais de heap. Com o Wi-Fi o maior bloco fica em ~4 KB, e sem esses 2 KB o
+// driver descartava pacotes e o upload parava na primeira janela do TCP.
+static int s_write_fd = -1;
+static const char kMount[] = "/sd";
 
 // O padrão do SD.begin é 4 MHz. 20 MHz é estável no CYD (VSPI dedicada).
 static const uint32_t kSdFreqHz = 20000000;
@@ -115,4 +125,49 @@ bool sd_write_whole(const char *path, const uint8_t *data, size_t len) {
   bool ok = f.write(data, len) == len;
   f.close();
   return ok;
+}
+
+bool sd_open_write(const char *path) {
+  if (!s_present) return false;
+  sd_close_write();
+  char full[sizeof(kMount) + 96];
+  snprintf(full, sizeof(full), "%s%s", kMount, path);
+  s_write_fd = ::open(full, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  if (s_write_fd < 0) {
+    LOG_E(TAG, "falha ao criar %s", path);
+    return false;
+  }
+  return true;
+}
+
+bool sd_write(const uint8_t *data, size_t len) {
+  if (s_write_fd < 0) return false;
+  return ::write(s_write_fd, data, len) == (ssize_t)len;
+}
+
+void sd_close_write() {
+  if (s_write_fd >= 0) ::close(s_write_fd);
+  s_write_fd = -1;
+}
+
+bool sd_is_writing() { return s_write_fd >= 0; }
+
+bool sd_exists(const char *path) { return s_present && SD.exists(path); }
+
+bool sd_remove(const char *path) {
+  if (!s_present) return false;
+  if (!SD.exists(path)) return true;
+  return SD.remove(path);
+}
+
+bool sd_rename(const char *from, const char *to) {
+  if (!s_present) return false;
+  // O rename do FATFS falha se o destino existe.
+  if (SD.exists(to) && !SD.remove(to)) return false;
+  return SD.rename(from, to);
+}
+
+bool sd_mkdir(const char *path) {
+  if (!s_present) return false;
+  return SD.exists(path) || SD.mkdir(path);
 }

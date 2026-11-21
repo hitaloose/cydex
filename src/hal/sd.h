@@ -29,3 +29,15 @@ void sd_close_read();
 // Lê/escreve um arquivo pequeno inteiro (cache de status etc.).
 bool sd_read_whole(const char *path, uint8_t *out, size_t len);
 bool sd_write_whole(const char *path, const uint8_t *data, size_t len);
+
+// Um arquivo de escrita aberto por vez (upload de save pela API). Trunca.
+// sd_write devolve false se gravou menos que `len` (cartão cheio).
+bool sd_open_write(const char *path);
+bool sd_write(const uint8_t *data, size_t len);
+void sd_close_write();
+bool sd_is_writing();
+// rename substitui o destino se já existir. remove de arquivo ausente = true.
+bool sd_rename(const char *from, const char *to);
+bool sd_remove(const char *path);
+bool sd_exists(const char *path);
+bool sd_mkdir(const char *path);  // true se já existe

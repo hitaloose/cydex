@@ -2,7 +2,7 @@
 
 #include "notify/Notice.h"
 
-// Servidor HTTP de avisos (porta 80, http://cydex.local). Qualquer coisa na
+// Servidor HTTP da API (porta 80, http://cydex.local): avisos, saves e Dex. Qualquer coisa na
 // rede manda aviso; o Claude Code é só um cliente (tools/cydex_claude.sh).
 // Todas as rotas, menos GET /, pedem Authorization: Bearer <chave>.
 //
@@ -14,9 +14,18 @@
 //   DELETE /notices         fecha todos. 204.
 //   GET    /notices         [{"id","tag","title","type","age"}] (depuração).
 //   POST   /sleep, /wake    sem corpo: apaga a tela (até na Vitrine) ou acende.
-//                           O Mac manda quando dorme/acorda (tools/cydex_power.sh). 204.
-//   GET    /                {"name":"CYDex","version":"0.1"} (teste com curl)
-//   401 chave errada (sem ler o corpo), 404, 405.
+//                           O app do computador (desktop/) manda quando ele dorme/acorda. 204.
+//   GET    /saves           [{"name","size","mtime","format"}] (format null =
+//                           não reconhecido). Até 16.
+//   PUT    /saves/<nome>    corpo = o save, gravado em fluxo num temporário e
+//                           renomeado no fim. 201; 400 {"error":"name"};
+//                           411 sem Content-Length; 413 > 1 MB; 507 erro de escrita.
+//   DELETE /saves/<nome>    204 (idempotente).
+//   POST   /saves/reload    refaz o status dos saves (ignora o cache) e remonta a
+//                           tela. 200 {"saves","parsed","seen","caught"}.
+//   GET    /dex             {"count":1025,"seen":"<hex>","caught":"<hex>"} (bit = n-1).
+//   GET    /                {"name":"CYDex","version":"0.1","api":2} (teste com curl)
+//   401 chave errada (sem ler o corpo), 404, 405, 503 sem cartão.
 //
 // Um cliente por vez, lido aos poucos a cada notice_server_tick() (no loop,
 // mesma task do LVGL: sem mutex). O corpo passa pelo NoticeJson em fluxo, sem
