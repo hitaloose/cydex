@@ -82,8 +82,8 @@ void loop() {
           ESP.getMinFreeHeap());
   }
 #endif
-  wifi_tick();    // Wi-Fi + servidor do hook (cydex.local/hook)
-  notice_tick();  // avisos do Claude Code: faixa ou balão na Vitrine
+  wifi_tick();    // Wi-Fi + servidor de avisos (cydex.local/notices)
+  notice_tick();  // avisos: faixa ou balão na Vitrine
   power_tick();
   delay(5);
 }

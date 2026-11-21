@@ -11,6 +11,7 @@ void HttpRequest::reset() {
   line_[0] = '\0';
   method_[0] = '\0';
   path_[0] = '\0';
+  query_[0] = '\0';
   bearer_[0] = '\0';
   content_length_ = -1;
   body_left_ = 0;
@@ -39,7 +40,7 @@ void HttpRequest::line_done() {
       state_ = State::Error;
       return;
     }
-    // "POST /hook HTTP/1.1"
+    // "DELETE /notices/abc?tag=x HTTP/1.1"
     const char *sp1 = strchr(line_, ' ');
     if (!sp1 || sp1 == line_ || (size_t)(sp1 - line_) >= sizeof(method_)) {
       state_ = State::Error;
@@ -54,12 +55,20 @@ void HttpRequest::line_done() {
       state_ = State::Error;
       return;
     }
-    if (plen >= sizeof(path_)) plen = sizeof(path_) - 1;
-    memcpy(path_, p, plen);
-    path_[plen] = '\0';
-    // Query string não interessa.
-    char *q = strchr(path_, '?');
-    if (q) *q = '\0';
+    const char *q = (const char *)memchr(p, '?', plen);
+    size_t path_len = q ? (size_t)(q - p) : plen;
+    if (path_len >= sizeof(path_)) {
+      state_ = State::Error;  // caminho comprido demais (id > 40): 400
+      return;
+    }
+    memcpy(path_, p, path_len);
+    path_[path_len] = '\0';
+    if (q) {
+      size_t qlen = plen - path_len - 1;
+      if (qlen >= sizeof(query_)) qlen = sizeof(query_) - 1;
+      memcpy(query_, q + 1, qlen);
+      query_[qlen] = '\0';
+    }
     state_ = State::Headers;
   } else if (state_ == State::Headers) {
     if (line_len_ == 0 && !line_overflow_) {
@@ -127,4 +136,38 @@ size_t HttpRequest::feed(const char *data, size_t len, BodySink on_body, void *c
     else line_overflow_ = true;
   }
   return i;
+}
+
+static int hex_digit(char ch) {
+  if (ch >= '0' && ch <= '9') return ch - '0';
+  if (ch >= 'a' && ch <= 'f') return ch - 'a' + 10;
+  if (ch >= 'A' && ch <= 'F') return ch - 'A' + 10;
+  return -1;
+}
+
+bool http_query_param(const char *query, const char *name, char *out, size_t cap) {
+  size_t nlen = strlen(name);
+  const char *p = query;
+  while (*p) {
+    const char *end = strchr(p, '&');
+    if (!end) end = p + strlen(p);
+    if ((size_t)(end - p) > nlen && strncmp(p, name, nlen) == 0 && p[nlen] == '=') {
+      size_t n = 0;
+      for (const char *v = p + nlen + 1; v < end; v++) {
+        char ch = *v;
+        if (ch == '+') {
+          ch = ' ';
+        } else if (ch == '%' && end - v >= 3 && hex_digit(v[1]) >= 0 && hex_digit(v[2]) >= 0) {
+          ch = (char)(hex_digit(v[1]) * 16 + hex_digit(v[2]));
+          v += 2;
+        }
+        if (n + 1 >= cap) return false;
+        out[n++] = ch;
+      }
+      out[n] = '\0';
+      return true;
+    }
+    p = *end ? end + 1 : end;
+  }
+  return false;
 }

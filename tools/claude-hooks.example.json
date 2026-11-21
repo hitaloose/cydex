@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "jq -c '{hook_event_name, notification_type, message, cwd, session_id, last_assistant_message: ((.last_assistant_message // \"\")[0:400])}' | curl -4 -s -m 5 -o /dev/null -H \"Authorization: Bearer $CYDEX_KEY\" -H \"Content-Type: application/json\" --data-binary @- http://cydex.local/hook || true",
+            "command": "\"$HOME/Development/cydex/tools/cydex_claude.sh\"",
             "async": true,
             "timeout": 10
           }
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "jq -c '{hook_event_name, notification_type, message, cwd, session_id, last_assistant_message: ((.last_assistant_message // \"\")[0:400])}' | curl -4 -s -m 5 -o /dev/null -H \"Authorization: Bearer $CYDEX_KEY\" -H \"Content-Type: application/json\" --data-binary @- http://cydex.local/hook || true",
+            "command": "\"$HOME/Development/cydex/tools/cydex_claude.sh\"",
             "async": true,
             "timeout": 10
           }
@@ -30,7 +30,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "jq -c '{hook_event_name, notification_type, message, cwd, session_id, last_assistant_message: ((.last_assistant_message // \"\")[0:400])}' | curl -4 -s -m 5 -o /dev/null -H \"Authorization: Bearer $CYDEX_KEY\" -H \"Content-Type: application/json\" --data-binary @- http://cydex.local/hook || true",
+            "command": "\"$HOME/Development/cydex/tools/cydex_claude.sh\"",
             "async": true,
             "timeout": 10
           }
@@ -42,7 +42,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "jq -c '{hook_event_name, notification_type, message, cwd, session_id, last_assistant_message: ((.last_assistant_message // \"\")[0:400])}' | curl -4 -s -m 5 -o /dev/null -H \"Authorization: Bearer $CYDEX_KEY\" -H \"Content-Type: application/json\" --data-binary @- http://cydex.local/hook || true",
+            "command": "\"$HOME/Development/cydex/tools/cydex_claude.sh\"",
             "async": true,
             "timeout": 10
           }
@@ -54,7 +54,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "jq -c '{hook_event_name, notification_type, message, cwd, session_id, last_assistant_message: ((.last_assistant_message // \"\")[0:400])}' | curl -4 -s -m 5 -o /dev/null -H \"Authorization: Bearer $CYDEX_KEY\" -H \"Content-Type: application/json\" --data-binary @- http://cydex.local/hook || true",
+            "command": "\"$HOME/Development/cydex/tools/cydex_claude.sh\"",
             "async": true,
             "timeout": 10
           }

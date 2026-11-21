@@ -44,6 +44,8 @@ const PATHS = {
   compass: '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>',
   chip: '<rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/>',
   check_circle: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9"/>',
+  alert: '<path d="M12 3.5L21.5 20h-19z"/><path d="M12 10v4"/><path d="M12 17h.01"/>',
+  bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 21h4"/>',
 };
 
 // [nome do ícone no código, traço, tamanho px, espessura do traço]
@@ -87,12 +89,19 @@ const ICONS = [
   ["eye_16", "eye", 16, 2.2],
   ["eye_off_16", "eye_off", 16, 2.2],
   ["shift_18", "shift", 18, 2.2],        // ⇧ do teclado (a fonte não tem o glifo)
-  ["shield_20", "shield", 20, 2.2],      // aviso: permissão
-  ["clock_20", "clock", 20, 2.2],        // aviso: esperando
-  ["check_circle_20", "check_circle", 20, 2.2],  // aviso: terminou
-  ["shield_16", "shield", 16, 2.4],      // balão da Vitrine
+  // Ícones dos avisos (campo "icon" do POST /notices): 20 na faixa, 16 no balão.
+  ["shield_20", "shield", 20, 2.2],
+  ["clock_20", "clock", 20, 2.2],
+  ["check_circle_20", "check_circle", 20, 2.2],
+  ["info_20", "info", 20, 2.2],
+  ["alert_20", "alert", 20, 2.2],
+  ["bell_20", "bell", 20, 2.2],
+  ["shield_16", "shield", 16, 2.4],
   ["clock_16", "clock", 16, 2.4],
   ["check_circle_16", "check_circle", 16, 2.4],
+  ["info_16", "info", 16, 2.4],
+  ["alert_16", "alert", 16, 2.4],
+  ["bell_16", "bell", 16, 2.4],
 ];
 
 // Ícones com viewBox próprio (marcas de status, 14x14 no canvas).

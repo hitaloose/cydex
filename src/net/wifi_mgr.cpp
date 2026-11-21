@@ -6,7 +6,7 @@
 #include <cstring>
 
 #include "data/Settings.h"
-#include "net/hook_server.h"
+#include "net/notice_server.h"
 #include "util/log.h"
 
 static const char *TAG = "wifi";
@@ -81,7 +81,7 @@ static void radio_on() {
   WiFi.setHostname(kHostname);
   WiFi.setAutoReconnect(false);  // a reconexão é nossa (com espera crescente)
   // Sem modem sleep: com ele o ping ia a 300-850 ms e um pacote perdido
-  // segurava o POST do hook por 3-5 s (o hook tem 3 s). O CYD fica na USB.
+  // segurava o POST de aviso por 3-5 s (o curl do hook tem 3 s). O CYD fica na USB.
   WiFi.setSleep(false);
 }
 
@@ -106,7 +106,7 @@ static void begin_attempt(const char *ssid, const char *pass, bool user) {
 }
 
 static void stop_services() {
-  hook_server_stop();
+  notice_server_stop();
   if (s_mdns) {
     MDNS.end();
     s_mdns = false;
@@ -134,7 +134,7 @@ static void on_connected() {
   } else {
     LOG_E(TAG, "mDNS não subiu");
   }
-  hook_server_start();
+  notice_server_start();
   set_state(WifiState::Connected);
   LOG_I(TAG, "conectado em \"%s\", ip=%s (http://%s.local) heap=%u maior_bloco=%u", s_ssid, s_ip,
         kHostname, ESP.getFreeHeap(), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
@@ -183,7 +183,7 @@ void wifi_mgr_init() {
 }
 
 void wifi_tick() {
-  hook_server_tick();
+  notice_server_tick();
   if (s_state == WifiState::Off) return;
 
   if (s_scanning) {

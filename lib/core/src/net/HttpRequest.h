@@ -3,9 +3,9 @@
 #include <cstddef>
 #include <cstdint>
 
-// Leitor de pedido HTTP/1.x em fluxo (servidor do hook, net/hook_server).
+// Leitor de pedido HTTP/1.x em fluxo (servidor de avisos, net/notice_server).
 // Memória fixa: guarda método, caminho, Content-Length e Authorization; o
-// corpo é entregue em pedaços pra quem chamou (HookJson), sem ficar na RAM.
+// corpo é entregue em pedaços pra quem chamou (NoticeJson), sem ficar na RAM.
 class HttpRequest {
  public:
   enum class State : uint8_t { RequestLine, Headers, Body, Done, Error };
@@ -24,6 +24,8 @@ class HttpRequest {
 
   const char *method() const { return method_; }
   const char *path() const { return path_; }
+  // O que vem depois do '?' ("" = sem query).
+  const char *query() const { return query_; }
   // -1 = sem Content-Length.
   int32_t content_length() const { return content_length_; }
   // Valor do Authorization (sem o "Bearer "), "" se ausente.
@@ -37,8 +39,13 @@ class HttpRequest {
   uint8_t line_len_;
   bool line_overflow_;
   char method_[8];
-  char path_[48];
+  char path_[64];   // /notices/<id de 40>
+  char query_[48];
   char bearer_[48];
   int32_t content_length_;
   int32_t body_left_;
 };
+
+// Valor de `name` na query ("a=1&tag=x"), com %XX e '+' decodificados.
+// false se não tem ou não coube em `out`.
+bool http_query_param(const char *query, const char *name, char *out, size_t cap);

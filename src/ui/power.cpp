@@ -6,7 +6,7 @@
 #include "hal/backlight.h"
 #include "hal/speaker.h"
 #include "hal/touch.h"
-#include "net/hook_server.h"
+#include "net/notice_server.h"
 #include "ui/nav.h"
 #include "util/log.h"
 
@@ -64,7 +64,7 @@ static void remote_off() {
 void power_tick() {
   speaker_update();
   if (s_remote) {
-    if (!s_asleep && hook_notices().size() == 0) remote_off();
+    if (!s_asleep && notices().size() == 0) remote_off();
     return;
   }
   uint16_t minutes = settings().screen_off_min;
@@ -78,7 +78,7 @@ void power_tick() {
 
 void power_remote_sleep() {
   s_remote = true;
-  if (!s_asleep && hook_notices().size() == 0) remote_off();
+  if (!s_asleep && notices().size() == 0) remote_off();
 }
 
 void power_remote_wake() {

@@ -226,7 +226,7 @@ lv_obj_t *showcase_screen_create() {
   return scr;
 }
 
-// 15b: até 3 balões compactos (162x50, tipo + projeto, sem a mensagem), como
+// 15b: até 3 balões compactos (162x50, título + subtítulo, sem a mensagem), como
 // se a criatura falasse várias coisas. Ficam fora do palco e do painel, então
 // sobrevivem às trocas de espécie.
 lv_obj_t *showcase_show_notices(const Notice *items, uint8_t count, lv_event_cb_t on_tap) {
@@ -240,7 +240,7 @@ lv_obj_t *showcase_show_notices(const Notice *items, uint8_t count, lv_event_cb_
 
   for (uint8_t i = 0; i < count && i < kMax; i++) {
     const Notice &n = items[i];
-    uint32_t color = notice_color(n.kind);
+    uint32_t color = n.color;
     lv_coord_t y = i * (kH + kGap);
 
     lv_obj_t *b = ui_box(wrap);
@@ -261,15 +261,21 @@ lv_obj_t *showcase_show_notices(const Notice *items, uint8_t count, lv_event_cb_
     lv_obj_set_style_pad_column(head, 6, 0);
     lv_obj_set_flex_flow(head, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(head, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    ui_icon(head, notice_icon(n.kind, true), color);
-    StrId kind = n.kind == NoticeKind::Permission ? STR_NOTICE_PERMISSION_SHORT
-                 : n.kind == NoticeKind::Idle     ? STR_NOTICE_IDLE_SHORT
-                                                  : STR_NOTICE_DONE_SHORT;
-    ui_label(head, &font_12_700, color, tr(kind));
-
-    lv_obj_t *proj = ui_label(b, &font_14_700, theme::TEXT, n.project);
-    lv_obj_set_width(proj, kW - 2 * kPadH - 2);
-    lv_label_set_long_mode(proj, LV_LABEL_LONG_DOT);
+    constexpr lv_coord_t kTextW = kW - 2 * kPadH - 2;
+    ui_icon(head, notice_icon(n.icon, true), color);
+    // Ícone + título pequeno na cor do aviso; embaixo, em destaque, o
+    // subtítulo (a origem) ou, sem ele, a mensagem. Sem os dois, o título
+    // fica sozinho em destaque ao lado do ícone.
+    const char *second = n.subtitle[0] ? n.subtitle : n.message;
+    lv_obj_t *t = second[0] ? ui_label(head, &font_12_700, color, n.title)
+                            : ui_label(head, &font_14_700, theme::TEXT, n.title);
+    lv_obj_set_width(t, kTextW - 16 - 6);
+    lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
+    if (second[0]) {
+      lv_obj_t *l = ui_label(b, &font_14_700, theme::TEXT, second);
+      lv_obj_set_width(l, kTextW);
+      lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+    }
     ui_on_click(b, on_tap, (void *)(uintptr_t)i);
 
     // Ponta: contorno na cor do aviso, miolo surface por cima (cobre a borda).

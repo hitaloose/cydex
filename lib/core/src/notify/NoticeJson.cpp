@@ -1,8 +1,9 @@
-#include "HookJson.h"
+#include "NoticeJson.h"
 
+#include <cstdlib>
 #include <cstring>
 
-void HookJson::reset() {
+void NoticeJson::reset() {
   memset(&f_, 0, sizeof(f_));
   state_ = State::BeforeRoot;
   string_return_ = State::Key;
@@ -17,10 +18,11 @@ void HookJson::reset() {
   target_ = nullptr;
   target_cap_ = 0;
   target_len_ = 0;
-  target_tail_ = false;
+  scalar_len_ = 0;
+  scalar_[0] = '\0';
 }
 
-void HookJson::feed(const char *data, size_t len) {
+void NoticeJson::feed(const char *data, size_t len) {
   for (size_t i = 0; i < len; i++) {
     if (state_ == State::Done || state_ == State::Error) return;
     step(data[i]);
@@ -29,9 +31,8 @@ void HookJson::feed(const char *data, size_t len) {
 
 static bool is_ws(char ch) { return ch == ' ' || ch == '\n' || ch == '\r' || ch == '\t'; }
 
-// Escreve um código no buffer do valor (UTF-8). Começo: para quando enche,
-// sem cortar caractere. Fim (cwd): desliza e mantém os últimos bytes.
-void HookJson::put_char(uint32_t cp) {
+// Escreve um código no buffer do valor (UTF-8).
+void NoticeJson::put_char(uint32_t cp) {
   char buf[4];
   size_t n;
   if (cp < 0x80) {
@@ -63,26 +64,42 @@ void HookJson::put_char(uint32_t cp) {
     return;
   }
   if (!target_) return;
+  // Começo: para quando enche, sem cortar caractere.
   if (target_len_ + n < target_cap_) {
     memcpy(target_ + target_len_, buf, n);
     target_len_ += n;
     target_[target_len_] = '\0';
-  } else if (target_tail_) {
-    // Tira caracteres inteiros do começo até caber.
-    size_t drop = 0;
-    while (target_len_ - drop + n >= target_cap_) {
-      drop++;
-      while (drop < target_len_ && ((unsigned char)target_[drop] & 0xC0) == 0x80) drop++;
-    }
-    memmove(target_, target_ + drop, target_len_ - drop);
-    target_len_ -= drop;
-    memcpy(target_ + target_len_, buf, n);
-    target_len_ += n;
-    target_[target_len_] = '\0';
+  } else {
+    target_ = nullptr;  // cheio: nada mais entra neste valor
   }
 }
 
-void HookJson::end_string() {
+// Byte UTF-8 cru (sem escape): passa como está.
+void NoticeJson::put_byte(char b) {
+  if (string_is_key_) {
+    if (key_len_ + 1 < sizeof(key_)) {
+      key_[key_len_++] = b;
+      key_[key_len_] = '\0';
+    }
+    return;
+  }
+  if (!target_) return;
+  if (target_len_ + 1 < target_cap_) {
+    target_[target_len_++] = b;
+    target_[target_len_] = '\0';
+  } else {
+    // Encheu. Se o byte que não coube é de continuação, o caractere atual
+    // ficou pela metade: tira os bytes dele que já entraram.
+    if (((unsigned char)b & 0xC0) == 0x80) {
+      while (target_len_ > 0 && ((unsigned char)target_[target_len_ - 1] & 0xC0) == 0x80) target_len_--;
+      if (target_len_ > 0) target_len_--;  // o byte inicial
+      target_[target_len_] = '\0';
+    }
+    target_ = nullptr;  // nada mais entra neste valor
+  }
+}
+
+void NoticeJson::end_string() {
   if (string_is_key_) {
     state_ = State::Colon;
     return;
@@ -91,7 +108,28 @@ void HookJson::end_string() {
   state_ = string_return_;
 }
 
-void HookJson::step(char ch) {
+// Escalar de 1o nível terminou: guarda se for uma das chaves conhecidas.
+// null conta como ausente.
+void NoticeJson::end_scalar() {
+  bool too_long = scalar_len_ >= sizeof(scalar_);
+  if (!too_long && strcmp(scalar_, "null") == 0) return;
+  bool is_true = !too_long && strcmp(scalar_, "true") == 0;
+  bool is_false = !too_long && strcmp(scalar_, "false") == 0;
+  if (strcmp(key_, "timeout") == 0) {
+    f_.has_timeout = true;
+    char *end = nullptr;
+    long v = too_long ? 0 : strtol(scalar_, &end, 10);
+    if (too_long || end == scalar_ || *end) f_.timeout_bad = true;  // 1.5, true, 1e3
+    else f_.timeout = (int32_t)(v < -1 ? -1 : v > 0x7FFFFFFF ? 0x7FFFFFFF : v);
+  } else if (strcmp(key_, "sound") == 0 || strcmp(key_, "wake") == 0) {
+    bool sound = key_[0] == 's';
+    (sound ? f_.has_sound : f_.has_wake) = true;
+    if (is_true || is_false) (sound ? f_.sound : f_.wake) = is_true;
+    else (sound ? f_.sound_bad : f_.wake_bad) = true;
+  }
+}
+
+void NoticeJson::step(char ch) {
   switch (state_) {
     case State::BeforeRoot:
       if (is_ws(ch)) return;
@@ -125,27 +163,33 @@ void HookJson::step(char ch) {
       if (is_ws(ch)) return;
       if (ch == '"') {
         target_ = nullptr;
-        target_tail_ = false;
-        if (strcmp(key_, "hook_event_name") == 0) {
-          target_ = f_.event;
-          target_cap_ = sizeof(f_.event);
-        } else if (strcmp(key_, "notification_type") == 0) {
-          target_ = f_.type;
-          target_cap_ = sizeof(f_.type);
-        } else if (strcmp(key_, "message") == 0) {
-          target_ = f_.message;
-          target_cap_ = sizeof(f_.message);
-        } else if (strcmp(key_, "last_assistant_message") == 0) {
-          target_ = f_.last;
-          target_cap_ = sizeof(f_.last);
-        } else if (strcmp(key_, "session_id") == 0) {
-          target_ = f_.session;
-          target_cap_ = sizeof(f_.session);
-        } else if (strcmp(key_, "cwd") == 0) {
-          target_ = f_.cwd;
-          target_cap_ = sizeof(f_.cwd);
-          target_tail_ = true;
+        struct Slot {
+          const char *key;
+          char *buf;
+          size_t cap;
+        };
+        const Slot slots[] = {
+            {"id", f_.id, sizeof(f_.id)},
+            {"tag", f_.tag, sizeof(f_.tag)},
+            {"title", f_.title, sizeof(f_.title)},
+            {"subtitle", f_.subtitle, sizeof(f_.subtitle)},
+            {"message", f_.message, sizeof(f_.message)},
+            {"type", f_.type, sizeof(f_.type)},
+            {"priority", f_.priority, sizeof(f_.priority)},
+            {"icon", f_.icon, sizeof(f_.icon)},
+            {"color", f_.color, sizeof(f_.color)},
+        };
+        for (const Slot &sl : slots) {
+          if (strcmp(key_, sl.key) == 0) {
+            target_ = sl.buf;
+            target_cap_ = sl.cap;
+            break;
+          }
         }
+        // Escalar mandado como string ("timeout":"10"): tipo errado.
+        if (strcmp(key_, "timeout") == 0) f_.timeout_bad = true;
+        else if (strcmp(key_, "sound") == 0) f_.sound_bad = true;
+        else if (strcmp(key_, "wake") == 0) f_.wake_bad = true;
         if (target_) {
           target_len_ = 0;
           target_[0] = '\0';
@@ -157,11 +201,17 @@ void HookJson::step(char ch) {
         hi_surrogate_ = 0;
         state_ = State::InString;
       } else if (ch == '{' || ch == '[') {
+        if (strcmp(key_, "timeout") == 0) f_.timeout_bad = true;
+        else if (strcmp(key_, "sound") == 0) f_.sound_bad = true;
+        else if (strcmp(key_, "wake") == 0) f_.wake_bad = true;
         depth_ = 1;
         state_ = State::Nested;
       } else if (ch == '}' || ch == ',' || ch == ']' || ch == ':') {
         state_ = State::Error;
       } else {
+        scalar_len_ = 0;
+        scalar_[scalar_len_++] = ch;
+        scalar_[scalar_len_] = '\0';
         state_ = State::Scalar;
       }
       return;
@@ -209,28 +259,21 @@ void HookJson::step(char ch) {
         escape_ = true;
       } else if (ch == '"') {
         end_string();
-      } else if (string_is_key_ || target_) {
-        // Bytes UTF-8 crus passam como estão (put_char de 1 byte cada).
-        unsigned char b = (unsigned char)ch;
-        if (string_is_key_) {
-          if (key_len_ + 1 < sizeof(key_)) {
-            key_[key_len_++] = (char)b;
-            key_[key_len_] = '\0';
-          }
-        } else if (target_len_ + 1 < target_cap_) {
-          target_[target_len_++] = (char)b;
-          target_[target_len_] = '\0';
-        } else if (target_tail_) {
-          memmove(target_, target_ + 1, target_len_ - 1);
-          target_[target_len_ - 1] = (char)b;
-        }
+      } else {
+        put_byte(ch);
       }
       return;
 
     case State::Scalar:
-      if (ch == ',') state_ = State::Key;
-      else if (ch == '}') state_ = State::Done;
-      else if (is_ws(ch)) state_ = State::AfterValue;
+      if (ch == ',' || ch == '}' || is_ws(ch)) {
+        end_scalar();
+        state_ = ch == ',' ? State::Key : ch == '}' ? State::Done : State::AfterValue;
+      } else if (scalar_len_ + 1 < sizeof(scalar_)) {
+        scalar_[scalar_len_++] = ch;
+        scalar_[scalar_len_] = '\0';
+      } else {
+        scalar_len_ = sizeof(scalar_);  // comprido demais: não é número que sirva
+      }
       return;
 
     case State::Nested:
@@ -255,7 +298,6 @@ void HookJson::step(char ch) {
       else state_ = State::Error;
       return;
 
-    case State::InKey:
     case State::Done:
     case State::Error:
       return;

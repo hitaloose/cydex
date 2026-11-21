@@ -1,11 +1,12 @@
 #include "notice_center.h"
 
+#include <Arduino.h>
+
 #include <cstdio>
 
 #include "data/Settings.h"
 #include "hal/speaker.h"
-#include "i18n/i18n.h"
-#include "net/hook_server.h"
+#include "net/notice_server.h"
 #include "ui/icons/icons.h"
 #include "ui/nav.h"
 #include "ui/power.h"
@@ -14,7 +15,7 @@
 #include "ui/widgets.h"
 #include "util/log.h"
 
-// Só desenha o NoticeBoard (net/hook_server): quem põe, ordena e limpa é ele.
+// Só desenha o NoticeBoard (net/notice_server): quem põe, ordena e limpa é ele.
 // Redesenha quando a versão do quadro muda ou quando entra/sai da Vitrine.
 
 namespace {
@@ -25,7 +26,6 @@ lv_obj_t *s_obj = nullptr;        // faixa ou balões (nullptr = nada desenhado)
 bool s_in_showcase = false;       // o que está desenhado é dos balões
 uint32_t s_drawn_version = 0;
 bool s_drawn = false;
-uint32_t s_seen_arrivals = 0;     // hook_arrivals() na última volta (detecta chegada)
 
 void on_obj_delete(lv_event_t *e) {
   // Os balões morrem junto com a tela da Vitrine.
@@ -38,7 +38,7 @@ void on_obj_delete(lv_event_t *e) {
 // Toque na faixa (índice 0) ou num balão (índice em user_data). O quadro muda
 // de versão e a próxima volta redesenha (apagar aqui, dentro do evento, não).
 void on_dismiss(lv_event_t *e) {
-  hook_notices().dismiss((uint8_t)(uintptr_t)lv_event_get_user_data(e));
+  notices().dismiss((uint8_t)(uintptr_t)lv_event_get_user_data(e));
 }
 
 void clear_drawn() {
@@ -48,14 +48,6 @@ void clear_drawn() {
     lv_obj_del(o);
   }
   s_drawn = false;
-}
-
-StrId title_of(NoticeKind k) {
-  switch (k) {
-    case NoticeKind::Permission: return STR_NOTICE_PERMISSION;
-    case NoticeKind::Idle: return STR_NOTICE_IDLE;
-    default: return STR_NOTICE_DONE;
-  }
 }
 
 lv_obj_t *banner(const Notice &n, uint8_t more) {
@@ -72,12 +64,12 @@ lv_obj_t *banner(const Notice &n, uint8_t more) {
   lv_obj_set_flex_flow(b, LV_FLEX_FLOW_ROW);
   lv_obj_set_flex_align(b, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-  uint32_t color = notice_color(n.kind);
+  uint32_t color = n.color;
   lv_obj_t *bar = ui_box(b);
   lv_obj_set_size(bar, 4, LV_PCT(100));
   lv_obj_set_style_bg_color(bar, c(color), 0);
   lv_obj_set_style_bg_opa(bar, LV_OPA_COVER, 0);
-  ui_icon(b, notice_icon(n.kind, false), color);
+  ui_icon(b, notice_icon(n.icon, false), color);
 
   // Largura do texto: 320 - barra 4 - ícone 20 - 3 gaps de 10 - pad 10 - chip.
   lv_coord_t text_w = 320 - 4 - 20 - 30 - 10 - (more ? 40 : 0);
@@ -85,14 +77,17 @@ lv_obj_t *banner(const Notice &n, uint8_t more) {
   lv_obj_set_size(col, text_w, LV_SIZE_CONTENT);
   lv_obj_set_style_pad_row(col, 1, 0);
   lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
-  lv_obj_t *t = ui_label(col, &font_14_700, theme::TEXT, tr(title_of(n.kind)));
+  lv_obj_t *t = ui_label(col, &font_14_700, theme::TEXT, n.title);
   lv_obj_set_width(t, text_w);
   lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
-  char sub[sizeof(n.project) + sizeof(n.message) + 8];
-  if (n.message[0]) snprintf(sub, sizeof(sub), "%s · %s", n.project, n.message);
-  else snprintf(sub, sizeof(sub), "%s", n.project);
-  lv_obj_t *s = ui_label(col, &font_12_500, theme::MUTED, sub);
-  ui_label_clamp(s, text_w, 2);
+  // "subtitle · message"; sem um dos dois, só o outro; sem os dois, só o título.
+  char sub[sizeof(n.subtitle) + sizeof(n.message) + 8];
+  const char *sep = n.subtitle[0] && n.message[0] ? " · " : "";
+  snprintf(sub, sizeof(sub), "%s%s%s", n.subtitle, sep, n.message);
+  if (sub[0]) {
+    lv_obj_t *s = ui_label(col, &font_12_500, theme::MUTED, sub);
+    ui_label_clamp(s, text_w, 2);
+  }
 
   if (more) {
     lv_obj_t *chip = ui_box(b);
@@ -111,7 +106,7 @@ lv_obj_t *banner(const Notice &n, uint8_t more) {
 
 void redraw() {
   clear_drawn();
-  const NoticeBoard &board = hook_notices();
+  const NoticeBoard &board = notices();
   s_drawn_version = board.version();
   s_in_showcase = nav_current() == Screen::Showcase;
   s_drawn = true;
@@ -134,30 +129,24 @@ void redraw() {
 
 }  // namespace
 
-uint32_t notice_color(NoticeKind k) {
-  switch (k) {
-    case NoticeKind::Permission: return theme::ACCENT;
-    case NoticeKind::Idle: return theme::NOTICE_IDLE;
-    default: return theme::NOTICE_DONE;
-  }
-}
-
-const lv_img_dsc_t *notice_icon(NoticeKind k, bool small) {
-  switch (k) {
-    case NoticeKind::Permission: return small ? &icon_shield_16 : &icon_shield_20;
-    case NoticeKind::Idle: return small ? &icon_clock_16 : &icon_clock_20;
-    default: return small ? &icon_check_circle_16 : &icon_check_circle_20;
+const lv_img_dsc_t *notice_icon(NoticeIcon icon, bool small) {
+  switch (icon) {
+    case NoticeIcon::Check: return small ? &icon_check_circle_16 : &icon_check_circle_20;
+    case NoticeIcon::Alert: return small ? &icon_alert_16 : &icon_alert_20;
+    case NoticeIcon::Shield: return small ? &icon_shield_16 : &icon_shield_20;
+    case NoticeIcon::Clock: return small ? &icon_clock_16 : &icon_clock_20;
+    case NoticeIcon::Bell: return small ? &icon_bell_16 : &icon_bell_20;
+    default: return small ? &icon_info_16 : &icon_info_20;
   }
 }
 
 void notice_tick() {
-  if (hook_arrivals() != s_seen_arrivals) {
-    s_seen_arrivals = hook_arrivals();
-    power_wake();
-    if (settings().sound) speaker_chime();
-  }
+  uint8_t arrivals = notice_take_arrivals();
+  if (arrivals & NOTICE_ARRIVAL_WAKE) power_wake();
+  if ((arrivals & NOTICE_ARRIVAL_SOUND) && settings().sound) speaker_chime();
+  NoticeBoard &board = notices();
+  board.expire(millis());  // mesmo relógio do notice_server (posted_ms)
   bool want_showcase = nav_current() == Screen::Showcase;
-  const NoticeBoard &board = hook_notices();
   if (!s_drawn || board.version() != s_drawn_version ||
       (board.size() > 0 && want_showcase != s_in_showcase)) {
     redraw();

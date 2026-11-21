@@ -178,14 +178,6 @@ typedef enum {
   STR_KB_MODE_LOWER,  /* teclado da senha */
   STR_KB_MODE_SYMBOLS,
 
-  /* Avisos do Claude Code (15, 15b) */
-  STR_NOTICE_PERMISSION,  /* faixa (15) */
-  STR_NOTICE_IDLE,
-  STR_NOTICE_DONE,
-  STR_NOTICE_PERMISSION_SHORT,  /* balão da Vitrine (15b) */
-  STR_NOTICE_IDLE_SHORT,
-  STR_NOTICE_DONE_SHORT,
-
   /* Genéricos */
   STR_UNKNOWN_NAME,  /* espécie desconhecida */
   STR_DECIMAL_SEP,   /* "," ou "." em altura/peso */

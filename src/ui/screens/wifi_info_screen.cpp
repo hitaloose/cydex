@@ -1,6 +1,6 @@
 // 05d' Wi-Fi › Conexão (canvas: AjustesWiFiInfo.dc.html).
-//   3 linhas de 34 px: Endereço (cydex.local), IP, Chave do hook
-//   embaixo: como configurar o hook do Claude Code no computador
+//   3 linhas de 34 px: Endereço (cydex.local), IP, Chave da API
+//   embaixo: como mandar aviso (POST /notices) e onde está o exemplo do Claude Code
 #include <cstdio>
 
 #include "data/Settings.h"

@@ -1,6 +1,6 @@
 # CYDex
 
-Pokédex de mesa rodando num **CYD (Cheap Yellow Display, ESP32-2432S028)** de 2,8". Mostra o catálogo de espécies (capturadas, vistas ou desconhecidas) lido do cartão SD, tem um **modo vitrine** sempre ligado e recebe pelo Wi-Fi os **avisos do Claude Code** (hooks HTTP).
+Pokédex de mesa rodando num **CYD (Cheap Yellow Display, ESP32-2432S028)** de 2,8". Mostra o catálogo de espécies (capturadas, vistas ou desconhecidas) lido do cartão SD, tem um **modo vitrine** sempre ligado e recebe pelo Wi-Fi **avisos** de qualquer coisa na rede (API HTTP `/notices`; o Claude Code é um dos clientes).
 
 Nome: **CYDex** (CYD + dex, lê-se "sai-dex"). Não usar "Poké"/"Pokémon" no nome do projeto, do repositório ou de binários; "Dex" sozinho é genérico.
 
@@ -25,7 +25,7 @@ Nome: **CYDex** (CYD + dex, lê-se "sai-dex"). Não usar "Poké"/"Pokémon" no n
 | 05c | `AjustesSistema.dc.html` | Ajustes › Sistema | Wi-Fi › (rede atual), Idioma › (Escolha), Cartão SD (registros, saves, "Recarregar", 52 px) |
 | 05g | `AjustesEscolha.dc.html` | Ajustes › Escolha | Genérica: uma linha de 34 px por opção, dica muted à direita, ✓ na atual; tocar grava e volta. Pagina com 6+ (tweak mostra Idioma com 2 páginas) |
 | 05d | `AjustesWiFi.dc.html` | Ajustes › Sistema › Wi-Fi | Interruptor + estado, 4 redes por página (barras de sinal, cadeado, ✓ e "Esquecer" na atual, que fica no topo), ↻ busca de novo, ⓘ abre 05d'. Rodapé de paginação sem "Ir para" |
-| 05d' | `AjustesWiFiInfo.dc.html` | Wi-Fi › Conexão | cydex.local, IP, chave do hook e como configurar no computador |
+| 05d' | `AjustesWiFiInfo.dc.html` | Wi-Fi › Conexão | cydex.local, IP, chave da API e como mandar aviso |
 | 05e | `WiFiSenha.dc.html` | Wi-Fi › Senha | Campo mascarado (olho mostra), faixa com rede + estado, teclado abc/ABC/123/#+= (só ASCII). "Conectar" vira "Pronto" quando conecta |
 | 06 | `Lista.dc.html` | Lista | Cabeçalho: buscar, tipos, ver em grade. Filtro Todos/Capturados/Faltando, 4 linhas por página, rodapé de paginação |
 | 06b | `IrPara.dc.html` | Ir para | 9 gerações (3×3) + teclado numérico (#1–1025). Os dois levam à página que contém o número, na visão de origem (Lista ou Grade); não abrem a Ficha |
@@ -38,8 +38,8 @@ Nome: **CYDex** (CYD + dex, lê-se "sai-dex"). Não usar "Poké"/"Pokémon" no n
 | 12 | `DetalheEvol.dc.html` | Ficha: Evolução | Até 3 estágios 64×64 com nível entre eles |
 | 13 | `NaoVisto.dc.html` | Ficha: não visto | Tudo "???", abas Status/Evolução desativadas |
 | 14 | `Vitrine.dc.html` | Modo vitrine | Palco de 164 px (sprite até 2×) + painel fixo de 144 px: nome em 1 linha de 20 px com "…", tipos lado a lado, medidas, mini status; toque sai pro Menu. Tweak `naoVisto`: só nº, nome e sprite, o resto "???" |
-| 15 | `Aviso.dc.html` | Aviso do Claude Code | Faixa de 56 px por cima de qualquer tela com o aviso mais importante: barra na cor do tipo, ícone, título, "projeto · mensagem" (2 linhas), "+n" dos outros. Toque fecha |
-| 15b | `VitrineAviso.dc.html` | Avisos na Vitrine | Até 3 balões compactos de 162×50 (tipo + projeto) saindo do sprite, o mais importante em cima; toque num balão fecha só ele |
+| 15 | `Aviso.dc.html` | Aviso | Faixa de 56 px por cima de qualquer tela com o aviso mais importante: barra na cor do aviso, ícone, título, "subtítulo · mensagem" (2 linhas), "+n" dos outros. Toque fecha |
+| 15b | `VitrineAviso.dc.html` | Avisos na Vitrine | Até 3 balões compactos de 162×50 (ícone + título, subtítulo) saindo do sprite, o mais importante em cima; toque num balão fecha só ele |
 
 ## Hardware
 
@@ -118,7 +118,7 @@ Status de espécie: círculo cheio accent com check = **capturado**; contorno mu
 - Escolha com 2 opções curtas fica na linha (segmentado). Com 3+ ou nomes longos, a linha "›" chama `settings_choice_open(ChoiceSpec)` (05g): título, `label`/`hint` por índice, `pick` grava, `back` é a tela que volta.
 - `ui/power.*` cuida do brilho, do "apagar tela" e do som ao tocar. As telas pedem brilho por `power_set_level()`, nunca direto no backlight. O 1º toque com a tela apagada só acende. Na Vitrine a tela nunca apaga. O som é um clique de 12 ms no alto-falante (GPIO 26, canal 2 do ledc, porque os canais 0 e 1 dividem o timer do backlight).
 - A versão ("CYDex v0.1") fica em `include/version.h`.
-- A lógica sem LVGL fica em `lib/core/src/logic/` (`Pager`, `HoldRepeat`, `RowPages`, `Catalog`, `NumberInput`, `Format`, `Search`, `Showcase`, `TextFit`), `notify/` (`HookJson`, `Notice`, `NoticeBoard`) e `net/` (`HttpRequest`, `WifiList`), e tem testes nativos.
+- A lógica sem LVGL fica em `lib/core/src/logic/` (`Pager`, `HoldRepeat`, `RowPages`, `Catalog`, `NumberInput`, `Format`, `Search`, `Showcase`, `TextFit`), `notify/` (`NoticeJson`, `Notice`, `NoticeBoard`) e `net/` (`HttpRequest`, `WifiList`), e tem testes nativos.
 - O LVGL 8 não tem `margin`. Usar um invólucro com padding.
 - Sem tema padrão do LVGL (`LV_USE_THEME_DEFAULT 0`): todo widget é estilizado à mão a partir dos tokens.
 
@@ -161,21 +161,29 @@ Status de espécie: círculo cheio accent com check = **capturado**; contorno mu
 - Os saves são lidos **só no boot** (ou em "Cartão SD › recarregar"). O resultado (`DexStatus`, 2×129 B) fica em RAM. Se a assinatura dos saves (nome, tamanho, data) não mudou, o boot usa o `status.cache` e pula o parse.
 - Na RAM ficam só os nomes (para Lista e Busca). O registro completo é lido do SD quando a ficha abre.
 
-## Wi-Fi e avisos do Claude Code
+## Wi-Fi e avisos
 
-- **Sem servidor no PC.** O próprio CYD serve `http://cydex.local/hook` (porta 80, mDNS). O hook do Claude Code é `type: "command"` com `curl -4 ... --data-binary @-` e `async: true` (`tools/claude-hooks.example.json`; teste com `tools/cydex_notify.sh`). Não dá pra usar o `type: "http"`: o CYD só tem IPv4 e o macOS espera 5 s pela resposta AAAA do mDNS, mais que o timeout. Com IP fixo, o hook para quando o DHCP troca o endereço.
-- Eventos que viram aviso: `Notification` com `permission_prompt` ou `idle_prompt` (campo `message`) e `Stop` (começo do `last_assistant_message`). O resto é ignorado (204 do mesmo jeito). O projeto é o nome da pasta do `cwd`.
-- Eventos que **limpam** (você respondeu no Claude): `UserPromptSubmit` e `SessionEnd` fecham todos os avisos da sessão; `PostToolBatch` (também `PostToolUse`/`PostToolUseFailure`) fecha só o "precisa de permissão" (aprovou e a ferramenta rodou). Negar uma permissão não tem evento próprio; o próximo `UserPromptSubmit` limpa. Casa pelo `session_id`: responder numa sessão não apaga aviso de outra. A limpeza não acende a tela nem toca nada. O `jq` do hook nunca manda o texto do prompt.
-- Autenticação: `Authorization: Bearer <chave>`. A chave (8 hex) é gerada no 1º boot e fica na NVS (`hook_key`); aparece em Wi-Fi › ⓘ. No PC ela vai em `CYDEX_KEY` (`allowedEnvVars`).
-- Respostas: **204 sem corpo** (corpo vazio = "seguir"; nunca bloqueia um `Stop`), 401 chave errada, 400 JSON ruim, 404/405, **413 com corpo > 16 KB**. O 401 e o 413 saem no fim dos cabeçalhos, sem ler o corpo: um body de 60 KB chegando mais rápido que o loop lê enchia os buffers do TCP e o Wi-Fi perdia pacotes. Por isso o hook do exemplo passa o JSON por `jq` (vem no macOS) e manda só os campos usados, com o `last_assistant_message` cortado em 400 caracteres (< 1 KB).
-- O corpo **não fica na RAM**: `HttpRequest` e `HookJson` (lib/core) leem em fluxo com memória fixa e guardam só os campos que interessam, cortados (o `Stop` pode ter 100 KB). O servidor é síncrono, um cliente por vez, avançado por `wifi_tick()` no loop (mesma task do LVGL, sem mutex), até 8 KB por volta; 3 s sem bytes fecha.
+- **Sem servidor no PC.** O próprio CYD serve a API em `http://cydex.local` (porta 80, mDNS). O firmware não sabe nada de Claude: qualquer coisa (CI, cron, Home Assistant, script) manda aviso com `curl -4`. Teste com `tools/cydex_notify.sh`. Sempre `-4`: o CYD só tem IPv4 e o macOS espera 5 s pela resposta AAAA do mDNS. Com IP fixo, o cliente para quando o DHCP troca o endereço.
+- Rotas (todas menos `GET /` pedem `Authorization: Bearer <chave>`):
+  - `POST /notices` cria ou substitui → **201 `{"id":"…"}`**; 400 `{"error":"<campo>"}` (ou `"json"`); **413 com corpo > 4 KB**.
+  - `DELETE /notices/<id>` fecha (`?tag=x`: só se a tag bater); `DELETE /notices` fecha todos. **204** sempre (idempotente). Fechar não acende a tela nem toca nada.
+  - `GET /notices` lista os abertos (`id`, `tag`, `title`, `type`, `age` em s), pra depuração. `GET /` dá nome e versão.
+- Corpo do `POST /notices` (campos desconhecidos são ignorados; null = ausente):
+  - `title` (**obrigatório**, ~28 caracteres na faixa), `subtitle` (a origem, 31 B), `message` (2 linhas, 111 B). Passam por `text_fit()`.
+  - `id` (até 40, `[A-Za-z0-9._:-]`): o mesmo id **substitui** o aberto (é o estado atual de uma coisa: um chat, um build). Sem id, o CYD gera `n<seq>` e devolve. `tag` (até 16, mesmo alfabeto): fechar seletivo.
+  - `type`: preset de cor, ícone e prioridade. `info` (padrão; muted, info, low), `success` (`#6FCF6A`, check, low), `warning` (`#FF8A4C`, alert, normal), `waiting` (`#F5D547`, clock, normal), `question` (accent, shield, high), `error` (accent, alert, high). `priority` (`high`/`normal`/`low`), `color` (`#RRGGBB`) e `icon` (`info`, `check`, `alert`, `shield`, `clock`, `bell`) sobrescrevem. Ícone desconhecido cai no do preset (ícone novo não quebra firmware antigo); outro valor desconhecido é 400.
+  - `timeout` (inteiro em s, 0–86400; 0 = até tocar ou `DELETE`), `sound` e `wake` (bool, padrão `true`; `wake: false` + `sound: false` = aviso silencioso, nem fura o `/sleep`).
+- Claude Code: o hook (`tools/claude-hooks.example.json`, `type: "command"`, `async: true`; `tools/cydex_install_hooks.sh <settings.json>` junta no settings sem mexer nos outros hooks, troca o caminho pelo absoluto e pode rodar de novo; `--remove` tira, `--dry-run` só mostra) chama `tools/cydex_claude.sh`, que traduz o evento com `jq` e chama a API. `Notification` `permission_prompt` → `question` (tag `permission`), `idle_prompt` → `waiting` (tag `idle`), `Stop` → `success` (tag `done`, começo do `last_assistant_message`, cortado em 400). `UserPromptSubmit`/`SessionEnd` → `DELETE /notices/<session_id>`; `PostToolBatch`/`PostToolUse`/`PostToolUseFailure` → `DELETE …?tag=permission` (aprovou). O id é o `session_id` (um aviso por chat; responder num chat não apaga o de outro). O subtítulo é o nome da pasta do `cwd`. Os títulos ficam no script (`CYDEX_LANG=en` pro inglês). O script nunca manda o texto do prompt. Não dá pra usar o `type: "http"` do Claude Code (o problema do IPv6 acima).
+- A chave (8 hex) é gerada no 1º boot e fica na NVS (`hook_key`, nome antigo); aparece em Wi-Fi › ⓘ. No PC vai em `CYDEX_KEY` (ambiente ou `~/.cydex`).
+- O 401 e o 413 saem no fim dos cabeçalhos, sem ler o corpo: um body grande chegando mais rápido que o loop lê enchia os buffers do TCP e o Wi-Fi perdia pacotes.
+- O corpo **não fica na RAM**: `HttpRequest` e `NoticeJson` (lib/core) leem em fluxo com memória fixa e guardam só os campos que interessam, cortados. O caminho vai até 63 B (`/notices/<id de 40>`; mais que isso é 400) e a query até 47. O servidor (`net/notice_server`) é síncrono, um cliente por vez, avançado por `wifi_tick()` no loop (mesma task do LVGL, sem mutex), até 8 KB por volta; 3 s sem bytes fecha.
 - `net/wifi_mgr`: estado `Off/Idle/Connecting/Connected/Failed`, busca assíncrona, reconexão com espera de 5 s → 60 s, `WiFi.persistent(false)` (rede e senha ficam em `AppSettings`, gravadas por `settings_save_wifi()` só quando a conexão dá certo). As telas comparam `wifi_version()` num timer de 250 ms e só redesenham quando muda.
-- Avisos abertos ficam no `NoticeBoard` (lib/core, dono: `hook_server`): **um por chat** (`session_id`; sem sessão, o projeto), até 4, ordenados por importância (permissão > esperando > terminou; empate: o mais antigo antes). O novo do mesmo chat substitui o anterior; o mesmo tipo do mesmo chat em 3 s conta uma vez. `ui/notice_center` só desenha o quadro quando a `version()` muda: fora da Vitrine é a faixa do 1º em `lv_layer_top()` ("+n" = os outros; sobrevive ao `nav_go`); na Vitrine são até 3 balões compactos (`showcase_show_notices()`, tipo + projeto, sem a mensagem). Toque fecha o tocado. Aviso aceito chama `power_wake()` e `speaker_chime()` (se "Som ao tocar").
+- Avisos abertos ficam no `NoticeBoard` (lib/core, dono: `notice_server`): **um por id**, até 4, ordenados por prioridade (empate: o mais antigo antes). Cheio, o novo só entra se for mais importante que o último (que sai); senão o POST dá 201 mas o aviso não aparece. O mesmo id com o mesmo título em 3 s conta uma vez. O `ui/notice_center` expira os de `timeout` (mesmo relógio, `millis()`) e só desenha quando a `version()` muda: fora da Vitrine é a faixa do 1º em `lv_layer_top()` ("+n" = os outros; sobrevive ao `nav_go`); na Vitrine são até 3 balões compactos (`showcase_show_notices()`: ícone + título na cor do aviso e, embaixo, o subtítulo ou a mensagem). Toque fecha o tocado. Aviso aceito chama `power_wake()` (se `wake`) e `speaker_chime()` (se `sound` e "Som ao tocar").
 - Texto de fora passa por `text_fit()` (`logic/TextFit`): tira markdown, junta espaços, troca o que a fonte não tem (`font_has_glyph`, a mesma tabela do `test_i18n`) e corta com "…".
-- `POST /sleep` e `POST /wake` (mesma chave, sem corpo, 204) apagam e acendem a tela junto com o Mac: o vigia `tools/cydex_power_watch.swift` (LaunchAgent em `tools/cydex-power.plist.example`) chama `tools/cydex_power.sh` (chave em `~/.cydex`). O `sleepwatcher` não recebe os eventos de tela no macOS atual, e o vigia precisa do `NSApplication` iniciado pra receber as notificações do `NSWorkspace`. Apagar é só o backlight (`power_remote_sleep()`), vale até na Vitrine. Com aviso aberto não apaga; aviso novo acende só o CYD e, quando o último fecha, apaga de novo. Toque com a tela apagada ou `/wake` saem do modo.
+- `POST /sleep` e `POST /wake` (mesma chave, sem corpo, 204) apagam e acendem a tela junto com o Mac: o vigia `tools/cydex_power_watch.swift` (LaunchAgent em `tools/cydex-power.plist.example`) chama `tools/cydex_power.sh` (chave em `~/.cydex`). O `sleepwatcher` não recebe os eventos de tela no macOS atual, e o vigia precisa do `NSApplication` iniciado pra receber as notificações do `NSWorkspace`. Apagar é só o backlight (`power_remote_sleep()`), vale até na Vitrine. Com aviso aberto não apaga; aviso novo (com `wake`) acende só o CYD e, quando o último fecha, apaga de novo. Toque com a tela apagada ou `/wake` saem do modo.
 - Wi-Fi vem desligado de fábrica. **Sem modem sleep** (`WiFi.setSleep(false)`): com ele o ping ia a 300–850 ms e um pacote perdido segurava o POST por 3–5 s.
 
 ## Futuro / em aberto
 
 - Troca entre aparelhos via ESP-NOW.
-- App do lado do PC (Linux, macOS e Windows): mandar saves pro CYDex pelo Wi-Fi e rodar em segundo plano no lugar dos scripts de hoje (apagar/acender junto com o computador, hoje `tools/cydex_power_watch.swift` + LaunchAgent, só no Mac).
+- App do lado do PC (Linux, macOS e Windows): mandar saves pro CYDex pelo Wi-Fi e rodar em segundo plano no lugar dos scripts de hoje (`tools/cydex_claude.sh` pros avisos do Claude; apagar/acender junto com o computador, hoje `tools/cydex_power_watch.swift` + LaunchAgent, só no Mac).

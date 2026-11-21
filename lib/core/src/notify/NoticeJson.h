@@ -3,38 +3,46 @@
 #include <cstddef>
 #include <cstdint>
 
-// Leitor de JSON em fluxo para o corpo do hook do Claude Code, byte a byte e
-// com memória fixa. Guarda só as chaves de primeiro nível que interessam,
-// cortadas no tamanho dos buffers. O resto (objetos, listas, números) é
-// pulado sem guardar nada.
+// Leitor de JSON em fluxo para o corpo do POST /notices, byte a byte e com
+// memória fixa. Guarda só as chaves de primeiro nível que interessam, cortadas
+// no tamanho dos buffers. O resto (chaves desconhecidas, objetos, listas) é
+// pulado sem guardar nada, então campos novos não quebram clientes antigos.
 //
-// O body do Stop traz `last_assistant_message`, que pode ter dezenas de KB.
-// Ler o corpo inteiro na RAM não dá no CYD (sem PSRAM).
-struct HookFields {
-  char event[24];          // hook_event_name
-  char type[32];           // notification_type
-  char message[160];       // message (Notification)
-  char last[160];          // last_assistant_message (Stop), só o começo
-  char cwd[96];            // cwd: só o fim importa (nome da pasta), ver abaixo
-  char session[40];        // session_id (UUID de 36): liga o aviso ao que o limpa
+// Os buffers de texto são maiores que os do Notice: o text_fit() ainda tira
+// markdown e junta espaços antes de cortar.
+struct NoticeFields {
+  char id[48];
+  char tag[24];
+  char title[96];
+  char subtitle[64];
+  char message[192];
+  char type[16];
+  char priority[16];
+  char icon[16];
+  char color[16];
+  // Escalares. has_* = a chave veio; *_bad = veio com tipo/valor que não é o
+  // esperado (vira 400).
+  bool has_timeout, has_sound, has_wake;
+  bool timeout_bad, sound_bad, wake_bad;
+  int32_t timeout;  // segundos
+  bool sound, wake;
 };
 
-class HookJson {
+class NoticeJson {
  public:
-  HookJson() { reset(); }
+  NoticeJson() { reset(); }
   void reset();
   // Consome um pedaço do corpo. Pode ser chamado quantas vezes precisar.
   void feed(const char *data, size_t len);
   // O objeto de primeiro nível foi fechado sem erro.
   bool done() const { return state_ == State::Done; }
   bool failed() const { return state_ == State::Error; }
-  const HookFields &fields() const { return f_; }
+  const NoticeFields &fields() const { return f_; }
 
  private:
   enum class State : uint8_t {
     BeforeRoot,  // esperando '{'
     Key,         // esperando chave ou '}'
-    InKey,
     Colon,
     Value,
     InString,    // valor string (de 1o nível ou aninhado)
@@ -46,10 +54,12 @@ class HookJson {
   };
 
   void put_char(uint32_t cp);
+  void put_byte(char b);
   void end_string();
+  void end_scalar();
   void step(char ch);
 
-  HookFields f_;
+  NoticeFields f_;
   State state_;
   State string_return_;   // estado depois da string atual
   bool string_is_key_;
@@ -63,5 +73,6 @@ class HookJson {
   char *target_;          // buffer do valor atual (nullptr = descartar)
   size_t target_cap_;
   size_t target_len_;
-  bool target_tail_;      // guarda o FIM (cwd), não o começo
+  char scalar_[16];       // escalar de 1o nível (timeout, sound, wake)
+  uint8_t scalar_len_;
 };

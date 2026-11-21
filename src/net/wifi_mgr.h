@@ -8,7 +8,7 @@
 // bloquear o LVGL. A rede e a senha ficam em AppSettings (NVS); o Wi-Fi do
 // core não grava nada (WiFi.persistent(false)).
 //
-// Conectado: sobe o mDNS (cydex.local) e o servidor do hook (net/hook_server).
+// Conectado: sobe o mDNS (cydex.local) e o servidor de avisos (net/notice_server).
 
 enum class WifiState : uint8_t {
   Off,           // rádio desligado (Ajustes)
