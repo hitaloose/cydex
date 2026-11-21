@@ -1,7 +1,7 @@
 // 14 Modo vitrine (canvas: Vitrine.dc.html, "carta"; CLAUDE.md "Modo vitrine").
-//   cartão 306x226 sem moldura:
+//   cartão 314x234 sem moldura (3 px da borda da tela, padding 3/5):
 //     cabeçalho 22: nome (16 px, 1 linha, "…") e tipos abreviados à direita
-//     corpo: janela 148x148 (borda 2 na cor do tipo 1) com o sprite 96 em 2x
+//     corpo: janela 148x148 (borda 2 na cor do tipo 1 a 50% sobre o fundo) com o sprite 96 em 2x
 //       cortado em 144 (72 px do original, centrados na parte opaca; mais alto
 //       que 72, ancora embaixo) · medidas + 6 status com rótulo, valor e barra
 //     rodapé 18: "#nº · Geração X" e o status de captura
@@ -36,15 +36,15 @@
 namespace {
 
 // Cartão (posição sem o deslocamento) e o miolo dele, sem o padding 6/10/6.
-constexpr lv_coord_t kCardX = 6, kCardY = 6, kCardW = 306, kCardH = 226;
-constexpr lv_coord_t kPadV = 6, kPadH = 10, kGap = 4;
-constexpr lv_coord_t kInnerW = kCardW - 2 * kPadH;  // 286
+constexpr lv_coord_t kCardX = 3, kCardY = 3, kCardW = 314, kCardH = 234;
+constexpr lv_coord_t kPadV = 3, kPadH = 5, kGap = 4;
+constexpr lv_coord_t kInnerW = kCardW - 2 * kPadH;  // 304
 // Rodapé: 18 de conteúdo + 4 de padding + 1 de borda (content-box no canvas).
 constexpr lv_coord_t kHeadH = 22, kFootH = 23;
 constexpr lv_coord_t kBodyY = kHeadH + kGap;
-constexpr lv_coord_t kBodyH = kCardH - 2 * kPadV - kHeadH - kFootH - 2 * kGap;  // 161
+constexpr lv_coord_t kBodyH = kCardH - 2 * kPadV - kHeadH - kFootH - 2 * kGap;  // 175
 constexpr lv_coord_t kWinW = 148, kWinBorder = 2;  // janela de 144 por dentro
-constexpr lv_coord_t kColX = kWinW + 8, kColW = kInnerW - kColX;  // 130
+constexpr lv_coord_t kColX = kWinW + 8, kColW = kInnerW - kColX;  // 148
 constexpr lv_coord_t kStatH = 14, kStatGap = 3, kStatLabelW = 26, kStatValueW = 24;
 constexpr lv_coord_t kStatBarX = kStatLabelW + 4 + kStatValueW + 4, kStatBarH = 4;
 constexpr lv_coord_t kChipPad = 7, kChipGap = 4;
@@ -107,7 +107,9 @@ void build_header(uint16_t n, const SpeciesRecord *rec, bool unseen) {
 // Janela 148x148: borda na cor do tipo 1 (desenhada por cima do sprite) e o
 // sprite 96 em 2x preso no canto, com a origem do corte em (ox, oy).
 void build_window(uint16_t n, const SpeciesRecord *rec, bool unseen) {
-  uint32_t tint = unseen || !rec ? theme::FAINT : species_type_color(rec->type1);
+  // Cor do tipo meio a meio com o fundo: a moldura não compete com o sprite.
+  lv_color_t tint = unseen || !rec ? c(theme::FAINT)
+                                   : lv_color_mix(c(species_type_color(rec->type1)), c(theme::BG), LV_OPA_50);
   lv_obj_t *win = ui_box(s_card);
   lv_obj_set_size(win, kWinW, kWinW);
   lv_obj_set_pos(win, 0, kBodyY + (kBodyH - kWinW) / 2);
@@ -116,7 +118,7 @@ void build_window(uint16_t n, const SpeciesRecord *rec, bool unseen) {
   lv_obj_set_style_bg_color(win, c(theme::BG), 0);
   lv_obj_set_style_bg_opa(win, LV_OPA_COVER, 0);
   lv_obj_set_style_border_width(win, kWinBorder, 0);
-  lv_obj_set_style_border_color(win, c(tint), 0);
+  lv_obj_set_style_border_color(win, tint, 0);
   lv_obj_set_style_border_post(win, true, 0);
 
   if (!sprite_load(n, SpriteSize::S96, &s_sprite)) return;
@@ -276,16 +278,19 @@ lv_obj_t *showcase_screen_create() {
   return scr;
 }
 
-// 15b: até 3 balões compactos (162x50, título + subtítulo, sem a mensagem), como
-// se a criatura falasse várias coisas. Ficam fora do palco e do painel, então
+// 15b: até 3 balões compactos (162x50, título + subtítulo, sem a mensagem)
+// empilhados à direita da janela do sprite; só o 1º tem a ponta. Ficam fora do palco e do painel, então
 // sobrevivem às trocas de espécie.
 lv_obj_t *showcase_show_notices(const Notice *items, uint8_t count, lv_event_cb_t on_tap) {
   if (!s_scr) return nullptr;
-  constexpr lv_coord_t kTail = 7, kW = 162, kH = 50, kGap = 6, kPadH = 10;
+  constexpr lv_coord_t kTail = 7, kW = 162, kH = 50, kGap = 6, kBalloonPadH = 10;
   constexpr uint8_t kMax = 3;
 
+  // A ponta do 1º encosta na borda direita da janela do sprite (entra 6 px) e
+  // o topo da pilha alinha com o topo da janela (sem o deslocamento da troca).
+  constexpr lv_coord_t kWinX = kCardX + kPadH, kWinY = kCardY + kPadV + kBodyY + (kBodyH - kWinW) / 2;
   lv_obj_t *wrap = ui_box(s_scr);
-  lv_obj_set_pos(wrap, 150 - kTail, 14);
+  lv_obj_set_pos(wrap, kWinX + kWinW - 6, kWinY);
   lv_obj_set_size(wrap, kW + kTail, kMax * kH + (kMax - 1) * kGap);
 
   for (uint8_t i = 0; i < count && i < kMax; i++) {
@@ -301,7 +306,7 @@ lv_obj_t *showcase_show_notices(const Notice *items, uint8_t count, lv_event_cb_
     lv_obj_set_style_border_color(b, c(color), 0);
     lv_obj_set_style_bg_color(b, c(theme::SURFACE), 0);
     lv_obj_set_style_bg_opa(b, LV_OPA_COVER, 0);
-    lv_obj_set_style_pad_hor(b, kPadH, 0);
+    lv_obj_set_style_pad_hor(b, kBalloonPadH, 0);
     lv_obj_set_style_pad_row(b, 2, 0);
     lv_obj_set_flex_flow(b, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(b, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
@@ -311,7 +316,7 @@ lv_obj_t *showcase_show_notices(const Notice *items, uint8_t count, lv_event_cb_
     lv_obj_set_style_pad_column(head, 6, 0);
     lv_obj_set_flex_flow(head, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(head, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    constexpr lv_coord_t kTextW = kW - 2 * kPadH - 2;
+    constexpr lv_coord_t kTextW = kW - 2 * kBalloonPadH - 2;
     ui_icon(head, notice_icon(n.icon, true), color);
     // Ícone + título pequeno na cor do aviso; embaixo, em destaque, o
     // subtítulo (a origem) ou, sem ele, a mensagem. Sem os dois, o título
@@ -328,7 +333,9 @@ lv_obj_t *showcase_show_notices(const Notice *items, uint8_t count, lv_event_cb_
     }
     ui_on_click(b, on_tap, (void *)(uintptr_t)i);
 
-    // Ponta: contorno na cor do aviso, miolo surface por cima (cobre a borda).
+    // Ponta só no 1º (o mais importante): é a criatura falando. Contorno na
+    // cor do aviso, miolo surface por cima (cobre a borda).
+    if (i > 0) continue;
     lv_obj_t *line = ui_icon(wrap, &icon_tail_line_8, color);
     lv_obj_set_pos(line, 0, y + (kH - 14) / 2);
     lv_obj_t *fill = ui_icon(wrap, &icon_tail_fill_8, theme::SURFACE);

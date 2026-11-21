@@ -37,9 +37,9 @@ Nome: **CYDex** (CYD + dex, lê-se "sai-dex"). Não usar "Poké"/"Pokémon" no n
 | 11 | `DetalheStatus.dc.html` | Ficha: Status | 6 barras (PS, Atq, Def, AtE, DfE, Vel) + total |
 | 12 | `DetalheEvol.dc.html` | Ficha: Evolução | Até 3 estágios 64×64 com nível entre eles |
 | 13 | `NaoVisto.dc.html` | Ficha: não visto | Tudo "???", abas Status/Evolução desativadas |
-| 14 | `Vitrine.dc.html` | Modo vitrine | Carta 306×226: nome (16 px, 1 linha, "…") + tipos abreviados; janela de 144 (borda na cor do tipo) com o sprite 2× cortado; medidas + 6 status com rótulo e valor; rodapé "#nº · Geração" + status. Toque sai pro Menu. Tweak `naoVisto`: só nº, nome e sprite, o resto "???" |
+| 14 | `Vitrine.dc.html` | Modo vitrine | Carta 314×234: nome (16 px, 1 linha, "…") + tipos abreviados; janela de 144 (borda na cor do tipo) com o sprite 2× cortado; medidas + 6 status com rótulo e valor; rodapé "#nº · Geração" + status. Toque sai pro Menu. Tweak `naoVisto`: só nº, nome e sprite, o resto "???" |
 | 15 | `Aviso.dc.html` | Aviso | Faixa de 56 px por cima de qualquer tela com o aviso mais importante: barra na cor do aviso, ícone, título, "subtítulo · mensagem" (2 linhas), "+n" dos outros. Toque fecha |
-| 15b | `VitrineAviso.dc.html` | Avisos na Vitrine | Até 3 balões compactos de 162×50 (ícone + título, subtítulo) saindo do sprite, o mais importante em cima; toque num balão fecha só ele |
+| 15b | `VitrineAviso.dc.html` | Avisos na Vitrine | Até 3 balões compactos de 162×50 (ícone + título, subtítulo) empilhados à direita da janela do sprite, a partir do topo dela; o mais importante em cima e só ele com a ponta apontando pro sprite; toque num balão fecha só ele |
 
 ## Hardware
 
@@ -132,7 +132,7 @@ Status de espécie: círculo cheio accent com check = **capturado**; contorno mu
 ## Modo vitrine
 
 - Sempre ligado, mostra uma espécie por vez.
-- Layout "carta" (cartão 306×226 em x=6, y=6, padding 6/10): cabeçalho de 22 px com o nome em 16 px numa linha (`ui_label_clamp`, "…") e os tipos abreviados à direita (`species_type_abbr`, 3 letras, `STR_TYPE_ABBR_*`); o nome fica com a largura que os chips deixam. Corpo: janela de 148×148 (borda 2 na cor do tipo 1, faint na não vista) e, à direita, medidas + status. Rodapé de 18 px + borda: "#nº · Geração X" (`STR_SC_FOOTER_FMT`) e a marca de status. Sem sombra no chão nem total.
+- Layout "carta" (cartão 314×234 em x=3, y=3, padding 3/5): cabeçalho de 22 px com o nome em 16 px numa linha (`ui_label_clamp`, "…") e os tipos abreviados à direita (`species_type_abbr`, 3 letras, `STR_TYPE_ABBR_*`); o nome fica com a largura que os chips deixam. Corpo: janela de 148×148 (borda 2 na cor do tipo 1 misturada 50% com o fundo, faint na não vista) e, à direita, medidas + status. Rodapé de 18 px + borda: "#nº · Geração X" (`STR_SC_FOOTER_FMT`) e a marca de status. Sem sombra no chão nem total.
 - Ajustes (salvos na NVS com `Preferences`, lidos ao entrar):
   - troca a cada: 30 s, 1, 2, 5 ou 15 min (padrão 1 min)
   - ordem: sequencial ou aleatória
