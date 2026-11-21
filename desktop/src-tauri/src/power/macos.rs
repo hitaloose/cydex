@@ -1,0 +1,36 @@
+//! macOS: notificações do NSWorkspace (tela dormiu/acordou, sistema vai dormir/acordou).
+//! Só chegam com o NSApplication rodando, o que o Tauri já faz. Tem que ser
+//! chamado na thread principal (o `setup` do Tauri roda nela).
+
+use super::{Handler, PowerEvent};
+use block2::RcBlock;
+use objc2_app_kit::{
+    NSWorkspace, NSWorkspaceDidWakeNotification, NSWorkspaceScreensDidSleepNotification,
+    NSWorkspaceScreensDidWakeNotification, NSWorkspaceWillSleepNotification,
+};
+use objc2_foundation::{NSNotification, NSOperationQueue};
+use std::ptr::NonNull;
+
+pub fn start(on: Handler) {
+    let center = NSWorkspace::sharedWorkspace().notificationCenter();
+    let queue = NSOperationQueue::mainQueue();
+    // SAFETY: constantes do AppKit, válidas a execução inteira.
+    let events = unsafe {
+        [
+            (NSWorkspaceScreensDidSleepNotification, PowerEvent::Sleep),
+            (NSWorkspaceWillSleepNotification, PowerEvent::Sleep),
+            (NSWorkspaceScreensDidWakeNotification, PowerEvent::Wake),
+            (NSWorkspaceDidWakeNotification, PowerEvent::Wake),
+        ]
+    };
+    for (name, event) in events {
+        let on = on.clone();
+        let block = RcBlock::new(move |_n: NonNull<NSNotification>| on(event));
+        // SAFETY: bloco 'static, chamado na fila principal.
+        let token = unsafe {
+            center.addObserverForName_object_queue_usingBlock(Some(name), None, Some(&queue), &block)
+        };
+        // O observador vale enquanto o app viver.
+        std::mem::forget(token);
+    }
+}

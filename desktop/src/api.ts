@@ -1,0 +1,113 @@
+// Ponte com os comandos do Rust (src-tauri/src/lib.rs).
+import { invoke } from "@tauri-apps/api/core";
+import { t } from "./i18n";
+
+export interface Config {
+  host: string;
+  key: string;
+  power_sync: boolean;
+  lang: string;
+}
+
+export interface Info {
+  name: string;
+  version: string;
+  api: number;
+  rssi: number | null;
+}
+
+export interface GenStats {
+  first: number;
+  last: number;
+  seen: number;
+  caught: number;
+}
+
+export interface DexSummary {
+  count: number;
+  seen: number;
+  caught: number;
+  generations: GenStats[];
+}
+
+export interface Status {
+  online: boolean;
+  info: Info | null;
+  key_ok: boolean | null;
+  dex: DexSummary | null;
+}
+
+export interface SaveInfo {
+  name: string;
+  size: number;
+  mtime: number;
+  format: string | null;
+}
+
+export interface ReloadResult {
+  saves: number;
+  parsed: number;
+  seen: number;
+  caught: number;
+}
+
+export interface UploadOutcome {
+  file: string;
+  name: string | null;
+  error: ApiError | null;
+}
+
+export interface UploadReport {
+  results: UploadOutcome[];
+  reload: ReloadResult | null;
+}
+
+export interface NoticeInfo {
+  id: string;
+  tag: string;
+  title: string;
+  type: string;
+  age: number;
+}
+
+export interface Found {
+  host: string;
+  ip: string;
+}
+
+export interface TestResult {
+  info: Info;
+  key_ok: boolean;
+}
+
+export interface ApiError {
+  code: string;
+  detail?: string | number;
+}
+
+export function errorText(e: unknown): string {
+  const err = e as ApiError;
+  if (err && typeof err === "object" && "code" in err) {
+    const key = `err.${err.code}` as Parameters<typeof t>[0];
+    return t(key, { d: err.detail ?? "" });
+  }
+  return String(e);
+}
+
+export const api = {
+  getConfig: () => invoke<Config>("get_config"),
+  getLang: () => invoke<string>("get_lang"),
+  saveConfig: (cfg: Config) => invoke<Config>("save_config", { cfg }),
+  test: (host: string, key: string) => invoke<TestResult>("test_connection", { host, key }),
+  discover: () => invoke<Found[]>("discover"),
+  status: () => invoke<Status>("get_status"),
+  refresh: () => invoke<Status>("refresh_status"),
+  saves: () => invoke<SaveInfo[]>("list_saves"),
+  upload: (paths: string[]) => invoke<UploadReport>("upload_saves", { paths }),
+  deleteSave: (name: string) => invoke<void>("delete_save", { name }),
+  reload: () => invoke<ReloadResult>("reload_saves"),
+  notices: () => invoke<NoticeInfo[]>("list_notices"),
+  sendNotice: (body: Record<string, unknown>) => invoke<string>("send_notice", { body }),
+  closeNotice: (id: string | null) => invoke<void>("close_notice", { id }),
+  power: (sleep: boolean) => invoke<void>("power_now", { sleep }),
+};

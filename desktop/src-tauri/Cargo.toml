@@ -1,0 +1,53 @@
+[package]
+name = "cydex-desktop"
+version = "0.1.0"
+description = "App de bandeja do CYDex: apaga/acende junto com o computador, saves, avisos e progresso"
+edition = "2021"
+rust-version = "1.90"
+
+[lib]
+name = "cydex_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+tauri-plugin-autostart = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+tokio = { version = "1", features = ["time", "sync", "macros", "rt", "rt-multi-thread"] }
+mdns-sd = "0.13"
+dns-lookup = "2"
+dirs = "6"
+sys-locale = "0.3"
+log = "0.4"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", features = ["NSNotification", "NSOperation", "NSString", "NSObject", "block2"] }
+objc2-app-kit = { version = "0.3", features = ["NSWorkspace", "block2"] }
+block2 = "0.6"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+  "Win32_Foundation",
+  "Win32_System_Power",
+  "Win32_System_SystemServices",
+  "Win32_System_LibraryLoader",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = { version = "5", default-features = false, features = ["tokio"] }
+futures-util = { version = "0.3", default-features = false }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

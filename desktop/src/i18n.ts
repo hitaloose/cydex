@@ -1,0 +1,218 @@
+// Textos da janela. pt-BR é a referência; o menu da bandeja fica em
+// src-tauri/src/tray_text.rs.
+
+const ptBR = {
+  "tab.dex": "Dex",
+  "tab.saves": "Saves",
+  "tab.notices": "Avisos",
+  "tab.connection": "Conexão",
+
+  "status.online": "Conectado",
+  "status.offline": "Fora da rede",
+  "status.bad_key": "Chave errada",
+  "status.unpaired": "Sem chave",
+
+  "err.offline": "O CYDex não respondeu. Ele está ligado e no mesmo Wi-Fi?",
+  "err.unauthorized": "Chave da API errada. Confira em Wi-Fi › ⓘ no CYDex.",
+  "err.unsupported": "O firmware do CYDex é antigo e não tem essa função. Atualize o firmware.",
+  "err.too_large": "Arquivo grande demais (máximo 1 MB).",
+  "err.no_card": "O CYDex está sem cartão SD.",
+  "err.storage": "Não deu pra gravar no cartão (cheio?).",
+  "err.bad_name": "Não parece um save (.sav ou .srm).",
+  "err.rejected": "O CYDex recusou o campo “{d}”.",
+  "err.http": "O CYDex respondeu com erro {d}.",
+  "err.io": "Não deu pra ler o arquivo: {d}",
+
+  "dex.title": "Progresso",
+  "dex.caught": "capturados",
+  "dex.summary": "{c} capturados · {s} vistos · {t} no total",
+  "dex.gen": "Geração {g}",
+  "dex.refresh": "Atualizar",
+  "dex.empty": "Conecte o CYDex para ver o progresso.",
+  "dex.legend_caught": "Capturados",
+  "dex.legend_seen": "Vistos",
+
+  "saves.title": "Saves no cartão",
+  "saves.drop": "Arraste arquivos .sav ou .srm aqui",
+  "saves.pick": "Escolher arquivos…",
+  "saves.reload": "Recarregar status",
+  "saves.empty": "Nenhum save no cartão ainda.",
+  "saves.unknown": "não reconhecido",
+  "saves.delete": "Apagar",
+  "saves.delete_ask": "Apagar “{n}” do cartão do CYDex? Não dá pra desfazer.",
+  "saves.uploading": "Enviando {i} de {n}: {f}",
+  "saves.sent": "{n} enviado(s).",
+  "saves.renamed": "“{f}” foi enviado como “{n}”.",
+  "saves.failed": "“{f}”: {e}",
+  "saves.reloaded": "Status recarregado: {p} de {s} saves lidos, {c} capturados, {v} vistos.",
+  "saves.limit": "O CYDex lê até 16 saves. Saves de geração ainda não suportada aparecem como “não reconhecido”.",
+  "saves.size_kb": "{n} KB",
+
+  "notices.title": "Avisos abertos",
+  "notices.empty": "Nenhum aviso aberto.",
+  "notices.close": "Fechar",
+  "notices.close_all": "Fechar todos",
+  "notices.age": "há {n}",
+  "notices.test": "Mandar um aviso",
+  "notices.field_title": "Título",
+  "notices.field_subtitle": "Subtítulo (origem)",
+  "notices.field_message": "Mensagem",
+  "notices.field_type": "Tipo",
+  "notices.field_sound": "Tocar som",
+  "notices.send": "Mandar",
+  "notices.sent": "Aviso mandado.",
+  "notices.default_title": "Teste do CYDex Desktop",
+
+  "conn.title": "Conexão",
+  "conn.host": "Endereço",
+  "conn.host_hint": "cydex.local ou o IP que aparece no CYDex em Wi-Fi › ⓘ",
+  "conn.find": "Procurar na rede",
+  "conn.finding": "Procurando…",
+  "conn.found_none": "Nenhum CYDex encontrado. Confira se o Wi-Fi dele está ligado.",
+  "conn.key": "Chave da API",
+  "conn.key_hint": "8 caracteres, em Wi-Fi › ⓘ no CYDex",
+  "conn.test": "Testar",
+  "conn.save": "Salvar",
+  "conn.saved": "Salvo.",
+  "conn.ok": "{n} {v} encontrado (sinal {r}). Chave certa.",
+  "conn.ok_no_key": "{n} {v} encontrado (sinal {r}), mas a chave está errada ou vazia.",
+  "conn.old_fw": "Firmware antigo: saves e Dex precisam de atualização.",
+  "conn.options": "Opções",
+  "conn.power_sync": "Apagar e acender a tela do CYDex junto com este computador",
+  "conn.autostart": "Abrir com o sistema (fica na bandeja)",
+  "conn.lang": "Idioma",
+  "conn.lang_auto": "Automático",
+  "conn.power_test": "Testar agora:",
+  "conn.sleep": "Apagar",
+  "conn.wake": "Acender",
+  "conn.signal_good": "bom",
+  "conn.signal_ok": "médio",
+  "conn.signal_bad": "fraco",
+
+  "type.info": "Informação",
+  "type.success": "Sucesso",
+  "type.warning": "Atenção",
+  "type.waiting": "Esperando",
+  "type.question": "Pergunta",
+  "type.error": "Erro",
+};
+
+type Key = keyof typeof ptBR;
+
+const en: Record<Key, string> = {
+  "tab.dex": "Dex",
+  "tab.saves": "Saves",
+  "tab.notices": "Notices",
+  "tab.connection": "Connection",
+
+  "status.online": "Connected",
+  "status.offline": "Offline",
+  "status.bad_key": "Wrong key",
+  "status.unpaired": "No key",
+
+  "err.offline": "CYDex didn't answer. Is it on and on the same Wi-Fi?",
+  "err.unauthorized": "Wrong API key. Check Wi-Fi › ⓘ on the CYDex.",
+  "err.unsupported": "The CYDex firmware is too old for this. Update the firmware.",
+  "err.too_large": "File too large (1 MB max).",
+  "err.no_card": "The CYDex has no SD card.",
+  "err.storage": "Couldn't write to the card (full?).",
+  "err.bad_name": "Doesn't look like a save (.sav or .srm).",
+  "err.rejected": "CYDex rejected the “{d}” field.",
+  "err.http": "CYDex answered with error {d}.",
+  "err.io": "Couldn't read the file: {d}",
+
+  "dex.title": "Progress",
+  "dex.caught": "caught",
+  "dex.summary": "{c} caught · {s} seen · {t} total",
+  "dex.gen": "Generation {g}",
+  "dex.refresh": "Refresh",
+  "dex.empty": "Connect the CYDex to see progress.",
+  "dex.legend_caught": "Caught",
+  "dex.legend_seen": "Seen",
+
+  "saves.title": "Saves on the card",
+  "saves.drop": "Drop .sav or .srm files here",
+  "saves.pick": "Choose files…",
+  "saves.reload": "Reload status",
+  "saves.empty": "No saves on the card yet.",
+  "saves.unknown": "not recognized",
+  "saves.delete": "Delete",
+  "saves.delete_ask": "Delete “{n}” from the CYDex card? This can't be undone.",
+  "saves.uploading": "Sending {i} of {n}: {f}",
+  "saves.sent": "{n} sent.",
+  "saves.renamed": "“{f}” was sent as “{n}”.",
+  "saves.failed": "“{f}”: {e}",
+  "saves.reloaded": "Status reloaded: {p} of {s} saves read, {c} caught, {v} seen.",
+  "saves.limit": "CYDex reads up to 16 saves. Saves from generations not supported yet show as “not recognized”.",
+  "saves.size_kb": "{n} KB",
+
+  "notices.title": "Open notices",
+  "notices.empty": "No open notices.",
+  "notices.close": "Close",
+  "notices.close_all": "Close all",
+  "notices.age": "{n} ago",
+  "notices.test": "Send a notice",
+  "notices.field_title": "Title",
+  "notices.field_subtitle": "Subtitle (source)",
+  "notices.field_message": "Message",
+  "notices.field_type": "Type",
+  "notices.field_sound": "Play sound",
+  "notices.send": "Send",
+  "notices.sent": "Notice sent.",
+  "notices.default_title": "CYDex Desktop test",
+
+  "conn.title": "Connection",
+  "conn.host": "Address",
+  "conn.host_hint": "cydex.local or the IP shown on the CYDex under Wi-Fi › ⓘ",
+  "conn.find": "Search the network",
+  "conn.finding": "Searching…",
+  "conn.found_none": "No CYDex found. Check that its Wi-Fi is on.",
+  "conn.key": "API key",
+  "conn.key_hint": "8 characters, under Wi-Fi › ⓘ on the CYDex",
+  "conn.test": "Test",
+  "conn.save": "Save",
+  "conn.saved": "Saved.",
+  "conn.ok": "Found {n} {v} (signal {r}). Key is correct.",
+  "conn.ok_no_key": "Found {n} {v} (signal {r}), but the key is wrong or empty.",
+  "conn.old_fw": "Old firmware: saves and Dex need an update.",
+  "conn.options": "Options",
+  "conn.power_sync": "Turn the CYDex screen off and on with this computer",
+  "conn.autostart": "Open at login (stays in the tray)",
+  "conn.lang": "Language",
+  "conn.lang_auto": "Automatic",
+  "conn.power_test": "Try now:",
+  "conn.sleep": "Off",
+  "conn.wake": "On",
+  "conn.signal_good": "good",
+  "conn.signal_ok": "fair",
+  "conn.signal_bad": "weak",
+
+  "type.info": "Info",
+  "type.success": "Success",
+  "type.warning": "Warning",
+  "type.waiting": "Waiting",
+  "type.question": "Question",
+  "type.error": "Error",
+};
+
+const langs: Record<string, Record<Key, string>> = { "pt-BR": ptBR, en };
+let current: Record<Key, string> = ptBR;
+let currentCode = "pt-BR";
+
+export function setLang(code: string) {
+  currentCode = langs[code] ? code : code.toLowerCase().startsWith("pt") ? "pt-BR" : "en";
+  current = langs[currentCode];
+  document.documentElement.lang = currentCode;
+}
+
+export function lang() {
+  return currentCode;
+}
+
+export function t(key: Key, vars: Record<string, string | number> = {}): string {
+  let s = current[key] ?? ptBR[key] ?? key;
+  for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(String(v));
+  return s;
+}
+
+export type { Key };

@@ -15,6 +15,7 @@ Tudo roda na placa. Os dados das espécies e os sprites ficam no cartão SD e s�
 - **Ajustes**: brilho, som ao tocar, abrir em Lista ou Grade, apagar a tela depois de um tempo sem toque, idioma (português e inglês) e recarregar os saves.
 - **Avisos**: com o Wi-Fi ligado, o CYD tem uma API HTTP simples pra mostrar avisos com título, texto, cor, ícone e prazo. Aparece uma faixa no topo de qualquer tela, ou um balão na vitrine, com bipe. Integrações prontas: **Claude Code** (avisa quando ele precisa de permissão, está esperando você ou terminou).
 - **Saves**: Gen3 (FireRed/LeafGreen, Ruby/Sapphire/Emerald). O resultado fica em cache no cartão e só é refeito quando um save muda.
+- **App no computador** (macOS, Windows e Linux): fica na bandeja, apaga e acende a tela do CYD junto com o computador, envia e apaga saves pelo Wi-Fi, mostra o progresso da Dex e os avisos abertos.
 
 A interface não tem scroll, animação nem tema claro, de propósito: cada toque faz um redesenho só, e o painel TN do CYD fica ruim com fundo claro fora do ângulo.
 
@@ -129,9 +130,19 @@ Todas pedem `Authorization: Bearer <chave>`, menos `GET /`.
 | `DELETE /notices` | Fecha todos | `204` |
 | `GET /notices` | Lista os abertos (`id`, `tag`, `title`, `type`, `age` em segundos) | `200` |
 | `POST /sleep`, `POST /wake` | Apaga e acende a tela (ver o passo 4) | `204` |
-| `GET /` | Nome e versão, pra testar | `200` |
+| `GET /saves` | Lista os saves do cartão (`name`, `size`, `mtime`, `format`; `format` é `null` se o CYD não reconhece o save) | `200` |
+| `PUT /saves/<nome>` | Grava o save (corpo = o arquivo, até 1 MB). O nome vai em URL (`%20`) e termina em `.sav` ou `.srm` | `201`; `400 {"error":"name"}`; `413`; `507` sem espaço |
+| `DELETE /saves/<nome>` | Apaga o save | `204` |
+| `POST /saves/reload` | Relê os saves (como Ajustes › Sistema › Recarregar) | `200 {"saves","parsed","seen","caught"}` |
+| `GET /dex` | Bits visto/capturado em hex (bit = número − 1) | `200` |
+| `GET /` | Nome, versão, `api` (2 = tem `/saves` e `/dex`) e sinal do Wi-Fi | `200` |
 
-Chave errada dá `401`. Fechar um aviso não acende a tela nem toca nada.
+Chave errada dá `401`. Fechar um aviso não acende a tela nem toca nada. Enviar um save não relê nada sozinho: mande um `POST /saves/reload` depois do lote.
+
+```sh
+curl -4 -X PUT -H "Authorization: Bearer $CYDEX_KEY" --data-binary @emerald.sav http://cydex.local/saves/emerald.sav
+curl -4 -X POST -H "Authorization: Bearer $CYDEX_KEY" http://cydex.local/saves/reload
+```
 
 #### Como os avisos aparecem
 
@@ -176,26 +187,42 @@ O `id` do aviso é o `session_id` do chat. Os títulos saem em português; com `
 
 Crie um script em `tools/` que chame a API (veja o `cydex_claude.sh` como exemplo), escolha um `id` estável pra cada coisa que você acompanha (assim o aviso novo substitui o velho) e use `DELETE /notices/<id>` quando o assunto se resolver. Depois acrescente uma seção aqui em "Integrações".
 
-### 4. Apagar junto com o Mac (opcional)
+### 4. App no computador (opcional)
 
-Com o Wi-Fi ligado, o CYD apaga a tela quando a tela do Mac apaga (ou o Mac dorme) e acende quando ele acorda. Vale até na Vitrine. Um toque acende como sempre.
+O [`desktop/`](desktop/) é um app de bandeja para macOS, Windows e Linux (Tauri 2). Ele:
 
-1. Tenha a chave no `~/.cydex` (passo 3; o LaunchAgent não vê o `~/.zshrc`).
-2. Compile o vigia (precisa do Xcode ou das Command Line Tools):
+- apaga a tela do CYD quando a tela do computador apaga (ou ele dorme) e acende quando ele acorda. Vale até na Vitrine, e um toque acende como sempre;
+- envia saves (arraste os `.sav`/`.srm` pra janela), apaga e relê o status;
+- mostra o progresso da Dex por geração e os avisos abertos, e manda aviso de teste;
+- acha o CYD na rede sozinho. A chave é a de Wi-Fi › ⓘ (ou a do `~/.cydex`, que ele importa na primeira vez).
 
-   ```sh
-   swiftc -O tools/cydex_power_watch.swift -o tools/cydex-power-watch
-   ```
+Os instaladores ficam nas [releases](../../releases) (`.dmg` pro macOS, `.msi`/`.exe` pro Windows, `.AppImage`/`.deb`/`.rpm` pro Linux). Eles não são assinados: no macOS, se aparecer "está danificado", rode `xattr -cr /Applications/CYDex.app`; no Windows, no SmartScreen, "Mais informações" › "Executar assim mesmo".
 
-3. Copie [`tools/cydex-power.plist.example`](tools/cydex-power.plist.example) para `~/Library/LaunchAgents/local.cydex.power.plist`, troque `/CAMINHO/DO/cydex` pelo caminho do repositório e carregue com `launchctl load ~/Library/LaunchAgents/local.cydex.power.plist`.
-4. Teste: `pmset displaysleepnow` apaga o CYD; mexer no mouse acende. O log fica em `/tmp/cydex-power.log`. Sem o Mac: `tools/cydex_notify.sh sleep` (ou `wake`).
+Pra publicar uma versão nova (o workflow [`desktop-release.yml`](.github/workflows/desktop-release.yml) põe a versão da tag no app, compila nos três sistemas e publica a release quando todos terminam):
 
-Com um aviso aberto, a tela não apaga; um aviso novo acende o CYD e, quando o último fecha, ele apaga de novo. O vigia ouve as notificações de tela e de descanso do macOS e chama `tools/cydex_power.sh`. Ao acordar, o script tenta por ~20 s, enquanto o Wi-Fi do Mac volta. (O `sleepwatcher` não serve: no macOS atual ele não recebe os eventos de tela.)
+```sh
+git tag desktop-v0.2.0 && git push origin desktop-v0.2.0
+```
+
+Também dá pra rodar pela aba Actions ("desktop-release" › "Run workflow", com a versão). O [`desktop.yml`](.github/workflows/desktop.yml) só roda testes e clippy nos três sistemas a cada push em `desktop/`.
+
+Pra rodar do código:
+
+```sh
+cd desktop && npm install
+npm run tauri dev     # janela de desenvolvimento
+npm run tauri build   # instalador do sistema atual
+```
+
+Precisa de Rust 1.90+ e Node 20+. No Linux, também de `libwebkit2gtk-4.1-dev`, `libayatana-appindicator3-dev` e `librsvg2-dev`. Ainda não dá pra baixar saves do CYD pelo app (backup): mandar centenas de KB seguidos pelo Wi-Fi derrubava o link do CYD.
+
+Com um aviso aberto, a tela não apaga; um aviso novo acende o CYD e, quando o último fecha, ele apaga de novo. Pra testar sem o app: `tools/cydex_notify.sh sleep` (ou `wake`).
 
 ## Desenvolvimento
 
 ```sh
 pio test -e native_test   # testes no PC (lógica, parser Gen3, idiomas, avisos)
+cd desktop/src-tauri && cargo test   # app do computador
 ```
 
 A lógica que não depende da placa fica em `lib/core` (C++ puro) e tem testes nativos: parser de save, formato dos arquivos, paginação, busca, filtros, vitrine e textos.
@@ -217,6 +244,9 @@ src/
   net/              Wi-Fi (wifi_mgr) e servidor da API de avisos (notice_server)
   ui/               tema, widgets, navegação, uma tela por arquivo em screens/
 test/               test_core, test_gen3, test_i18n, test_notify
+desktop/            app de bandeja (Tauri 2): src/ é a janela (TypeScript),
+                    src-tauri/ o Rust (cliente da API, mDNS, dormir/acordar
+                    por sistema em power/)
 tools/              build_sd.py (SD), gen_fonts.mjs e gen_icons.mjs (assets),
                     cydex_notify.sh (testa a API de avisos),
                     cydex_claude.sh, claude-hooks.example.json e
@@ -246,6 +276,7 @@ Medidas, cores, regras de interface, formato dos dados e lições da placa (pilh
 ## Próximos passos
 
 - Saves de outras gerações (Gen1/2, Gen4+).
+- Baixar saves do CYD pelo app (backup).
 - Mais integrações de avisos.
 - Troca entre aparelhos via ESP-NOW.
 
