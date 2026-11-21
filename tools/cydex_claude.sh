@@ -13,6 +13,7 @@
 #   PostToolUseFailure             -> fecha só o "precisa de permissão" (aprovou)
 #
 # O id do aviso é o session_id: um aviso por chat, o novo substitui o anterior.
+# Título curto (só o estado); o subtítulo é o nome da pasta do projeto.
 # O texto do prompt nunca sai daqui. Precisa de jq (vem no macOS) e curl.
 #
 # Chave e endereço: CYDEX_KEY e CYDEX_HOST (padrão cydex.local), do ambiente
@@ -30,9 +31,9 @@ SID="$(field .session_id)"
 [ -n "$SID" ] || exit 0
 
 if [ "${CYDEX_LANG:-pt-BR}" = "en" ]; then
-  T_PERM="Claude needs permission"; T_IDLE="Claude is waiting for you"; T_DONE="Claude is done"
+  T_PERM="Permission"; T_IDLE="Waiting for you"; T_DONE="Done"
 else
-  T_PERM="Claude precisa de permissão"; T_IDLE="Claude está esperando você"; T_DONE="Claude terminou"
+  T_PERM="Permissão"; T_IDLE="Esperando você"; T_DONE="Terminou"
 fi
 
 # -4: o CYD só tem IPv4 (sem ele o macOS espera 5 s pela resposta IPv6 do mDNS).

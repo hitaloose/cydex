@@ -157,7 +157,7 @@ Integrações prontas, em `tools/`. Cada uma é um script que traduz os eventos 
 
 ##### Claude Code
 
-Avisa quando o Claude **precisa de permissão**, está **esperando você** ou **terminou**, um aviso por chat, com o nome da pasta do projeto. Quando você responde no Claude (manda uma mensagem, aprova a permissão ou fecha a sessão), o aviso daquele chat some sozinho. Responder num chat não apaga o aviso de outro.
+Avisa quando o Claude **precisa de permissão**, está **esperando você** ou **terminou**, um aviso por chat. O título diz o estado e o subtítulo é o nome da pasta do projeto. Quando você responde no Claude (manda uma mensagem, aprova a permissão ou fecha a sessão), o aviso daquele chat some sozinho. Responder num chat não apaga o aviso de outro.
 
 1. Faça o passo "Ligar o Wi-Fi e pegar a chave" acima (o script lê a chave do `~/.cydex`).
 2. Instale os hooks no settings do Claude Code. O instalador junta os hooks do CYDex com os que você já tem (de outras ferramentas, por exemplo) sem mexer neles, guarda uma cópia do arquivo antes e pode rodar de novo quando quiser:
@@ -175,11 +175,11 @@ Os hooks estão em [`tools/claude-hooks.example.json`](tools/claude-hooks.exampl
 
 | Evento do Claude Code | Aviso |
 |---|---|
-| Pediu permissão | `question` "Claude precisa de permissão" |
-| Esperando você | `waiting` "Claude está esperando você" |
-| Terminou de responder | `success` "Claude terminou", com o começo da resposta |
+| Pediu permissão | `question` "Permissão" |
+| Esperando você | `waiting` "Esperando você" |
+| Terminou de responder | `success` "Terminou", com o começo da resposta |
 | Você mandou mensagem ou fechou a sessão | fecha o aviso do chat |
-| Você aprovou a permissão | fecha só o "precisa de permissão" |
+| Você aprovou a permissão | fecha só o "Permissão" |
 
 O `id` do aviso é o `session_id` do chat. Os títulos saem em português; com `CYDEX_LANG=en` no `~/.cydex`, em inglês. Os hooks rodam em segundo plano (`async`), nunca seguram o Claude e, se o CYD estiver desligado, só falham sem dizer nada. O texto que você digita nunca sai do computador.
 
