@@ -66,6 +66,9 @@ void test_type_keys_follow_enum_order() {
   TEST_ASSERT_EQUAL(SPECIES_TYPE_COUNT, STR_TYPE_FAIRY - STR_TYPE_NORMAL + 1);
   TEST_ASSERT_EQUAL_STRING("Normal", species_type_name(SpeciesType::Normal));
   TEST_ASSERT_EQUAL_STRING("Fada", species_type_name(SpeciesType::Fairy));
+  TEST_ASSERT_EQUAL(SPECIES_TYPE_COUNT, STR_TYPE_ABBR_FAIRY - STR_TYPE_ABBR_NORMAL + 1);
+  TEST_ASSERT_EQUAL_STRING("ÁGU", species_type_abbr(SpeciesType::Water));
+  TEST_ASSERT_EQUAL_STRING("FAD", species_type_abbr(SpeciesType::Fairy));
 }
 
 void test_only_latin1_glyphs_plus_extras() {

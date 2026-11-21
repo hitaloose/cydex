@@ -13,6 +13,11 @@ const char *species_type_name(SpeciesType t) {
   return (i >= 0 && i < SPECIES_TYPE_COUNT) ? tr((StrId)(STR_TYPE_NORMAL + i)) : "";
 }
 
+const char *species_type_abbr(SpeciesType t) {
+  int i = (int)t;
+  return (i >= 0 && i < SPECIES_TYPE_COUNT) ? tr((StrId)(STR_TYPE_ABBR_NORMAL + i)) : "";
+}
+
 uint32_t species_type_color(SpeciesType t) {
   int i = (int)t;
   return (i >= 0 && i < SPECIES_TYPE_COUNT) ? kColors[i] : 0x4A5562;

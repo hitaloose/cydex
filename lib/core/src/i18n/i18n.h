@@ -141,8 +141,7 @@ typedef enum {
   STR_SYS_RELOAD,
 
   /* Vitrine */
-  STR_SC_TOTAL_FMT,
-  STR_SC_TOTAL_UNKNOWN,  /* espécie não vista na Vitrine */
+  STR_SC_FOOTER_FMT,  /* %u = nº, %s = geração em romano */
   STR_SC_EMPTY_CAUGHT,
   STR_SC_EMPTY_SEEN,
   STR_SC_EMPTY_HINT,
@@ -201,6 +200,26 @@ typedef enum {
   STR_TYPE_DARK,
   STR_TYPE_STEEL,
   STR_TYPE_FAIRY,
+
+  /* Tipos abreviados (3 letras, chips da Vitrine): mesma ordem. Testado. */
+  STR_TYPE_ABBR_NORMAL,
+  STR_TYPE_ABBR_FIRE,
+  STR_TYPE_ABBR_WATER,
+  STR_TYPE_ABBR_GRASS,
+  STR_TYPE_ABBR_ELECTRIC,
+  STR_TYPE_ABBR_ICE,
+  STR_TYPE_ABBR_FIGHTING,
+  STR_TYPE_ABBR_POISON,
+  STR_TYPE_ABBR_GROUND,
+  STR_TYPE_ABBR_FLYING,
+  STR_TYPE_ABBR_PSYCHIC,
+  STR_TYPE_ABBR_BUG,
+  STR_TYPE_ABBR_ROCK,
+  STR_TYPE_ABBR_GHOST,
+  STR_TYPE_ABBR_DRAGON,
+  STR_TYPE_ABBR_DARK,
+  STR_TYPE_ABBR_STEEL,
+  STR_TYPE_ABBR_FAIRY,
 
   /* Status base, rótulo curto: mesma ordem do species.bin (PS..Vel) */
   STR_STAT_HP,

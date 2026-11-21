@@ -119,9 +119,6 @@ const RAW = [
   ["dash_box_64", 64, '<rect x="0.5" y="0.5" width="63" height="63" rx="4" fill="none" stroke="#fff" stroke-width="1" stroke-dasharray="3 2"/>', 64],
   // Selo "Não visto" da Ficha (112x24, raio 12).
   ["dash_pill_112", 112, '<rect x="0.5" y="0.5" width="111" height="23" rx="11.5" fill="none" stroke="#fff" stroke-width="1" stroke-dasharray="3 2"/>', 112, 24],
-  // Sombra no chão da Vitrine: elipse 140x22 com borda que some (gradiente
-  // radial). O LVGL não desenha elipse; pintada com a cor do tipo a 18%.
-  ["floor_140", 140, '<defs><radialGradient id="g" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#fff" stop-opacity="1"/><stop offset="0.55" stop-color="#fff" stop-opacity="0.85"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient></defs><ellipse cx="70" cy="11" rx="70" ry="11" fill="url(#g)"/>', 140, 22],
   // ▶ cheio do "Iniciar vitrine".
   ["play_18", 24, '<path d="M8 5v14l11-7z" fill="#fff"/>', 18],  // ▶ do cabeçalho do 05b
   // Ponta do balão da Vitrine (15b): contorno na cor do aviso + miolo surface por cima.

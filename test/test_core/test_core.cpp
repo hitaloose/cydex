@@ -413,28 +413,35 @@ void test_showcase_shift_and_cycle() {
   TEST_ASSERT_EQUAL(1, showcase_cycle_minutes(1, 30));  // arredonda pra cima
 }
 
-void test_showcase_fit() {
+void test_showcase_crop() {
   constexpr uint16_t K = 0x07E0;
   static uint16_t px[96 * 96];
   for (auto &v : px) v = K;
-  uint8_t x0 = 0, x1 = 0;
-  TEST_ASSERT_FALSE(showcase_opaque_cols(px, 96, K, &x0, &x1));
+  uint8_t x0 = 0, x1 = 0, y0 = 0, y1 = 0;
+  TEST_ASSERT_FALSE(showcase_opaque_box(px, 96, K, &x0, &x1, &y0, &y1));
   px[10 * 96 + 30] = 0x1234;  // assimétrico: colunas 30 e 71 em linhas diferentes
   px[80 * 96 + 71] = 0;
-  TEST_ASSERT_TRUE(showcase_opaque_cols(px, 96, K, &x0, &x1));
+  TEST_ASSERT_TRUE(showcase_opaque_box(px, 96, K, &x0, &x1, &y0, &y1));
   TEST_ASSERT_EQUAL(30, x0);
   TEST_ASSERT_EQUAL(71, x1);
+  TEST_ASSERT_EQUAL(10, y0);
+  TEST_ASSERT_EQUAL(80, y1);
   px[50 * 96 + 0] = 0;
   px[51 * 96 + 95] = 0;
-  TEST_ASSERT_TRUE(showcase_opaque_cols(px, 96, K, &x0, &x1));
+  TEST_ASSERT_TRUE(showcase_opaque_box(px, 96, K, &x0, &x1, &y0, &y1));
   TEST_ASSERT_EQUAL(0, x0);
   TEST_ASSERT_EQUAL(95, x1);
+  TEST_ASSERT_EQUAL(10, y0);
+  TEST_ASSERT_EQUAL(80, y1);
 
-  TEST_ASSERT_EQUAL(512, showcase_fit_zoom(0, 164));
-  TEST_ASSERT_EQUAL(512, showcase_fit_zoom(82, 164));   // cabe exato em 2x
-  TEST_ASSERT_EQUAL(512, showcase_fit_zoom(40, 164));   // nunca passa de 2x
-  TEST_ASSERT_EQUAL(437, showcase_fit_zoom(96, 164));   // 164*256/96 = 437,3
-  TEST_ASSERT_EQUAL(505, showcase_fit_zoom(83, 164));  // 505,8
+  constexpr uint8_t W = SHOWCASE_CROP;
+  TEST_ASSERT_EQUAL(12, showcase_crop_origin(30, 65, 96, W, true));   // pequena: centrada (48 - 36)
+  TEST_ASSERT_EQUAL(0, showcase_crop_origin(0, 40, 96, W, true));     // encostada em cima: presa em 0
+  TEST_ASSERT_EQUAL(24, showcase_crop_origin(70, 95, 96, W, false));  // encostada embaixo: presa em 24
+  TEST_ASSERT_EQUAL(18, showcase_crop_origin(10, 89, 96, W, true));   // mais alta: fim no pé (90 - 72)
+  TEST_ASSERT_EQUAL(14, showcase_crop_origin(10, 89, 96, W, false));  // mais larga: centrada
+  TEST_ASSERT_EQUAL(24, showcase_crop_origin(0, 95, 96, W, true));    // 96 inteiros: pé embaixo
+  TEST_ASSERT_EQUAL(0, showcase_crop_origin(0, 95, 48, 96, true));    // janela maior que o eixo
 }
 
 // ---------- NumberInput ----------
@@ -655,7 +662,7 @@ int main() {
   RUN_TEST(test_option_step);
   RUN_TEST(test_showcase_next);
   RUN_TEST(test_showcase_shift_and_cycle);
-  RUN_TEST(test_showcase_fit);
+  RUN_TEST(test_showcase_crop);
   RUN_TEST(test_showcase_eligible);
   RUN_TEST(test_row_pages_single);
   RUN_TEST(test_row_pages_paged);

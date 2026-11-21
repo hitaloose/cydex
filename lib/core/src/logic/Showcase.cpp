@@ -35,28 +35,38 @@ uint32_t showcase_cycle_minutes(uint16_t count, uint16_t interval_s) {
   return ((uint32_t)count * interval_s + 59) / 60;
 }
 
-bool showcase_opaque_cols(const uint16_t *px, uint16_t size, uint16_t key, uint8_t *x0,
-                          uint8_t *x1) {
-  int lo = size, hi = -1;
+bool showcase_opaque_box(const uint16_t *px, uint16_t size, uint16_t key, uint8_t *x0,
+                         uint8_t *x1, uint8_t *y0, uint8_t *y1) {
+  int lo = size, hi = -1, top = -1, bottom = -1;
   for (uint16_t y = 0; y < size; y++) {
     const uint16_t *row = px + (uint32_t)y * size;
-    for (int x = 0; x < lo; x++) {
-      if (row[x] != key) { lo = x; break; }
+    int first = -1;
+    for (int x = 0; x < size; x++) {
+      if (row[x] != key) { first = x; break; }
     }
+    if (first < 0) continue;
+    if (top < 0) top = y;
+    bottom = y;
+    if (first < lo) lo = first;
     for (int x = size - 1; x > hi; x--) {
       if (row[x] != key) { hi = x; break; }
     }
   }
-  if (hi < 0) return false;
+  if (top < 0) return false;
   *x0 = (uint8_t)lo;
   *x1 = (uint8_t)hi;
+  *y0 = (uint8_t)top;
+  *y1 = (uint8_t)bottom;
   return true;
 }
 
-uint16_t showcase_fit_zoom(uint16_t opaque_w, uint16_t avail) {
-  if (opaque_w == 0) return 512;
-  uint32_t z = (uint32_t)avail * 256 / opaque_w;
-  return z > 512 ? 512 : (uint16_t)z;
+uint8_t showcase_crop_origin(uint8_t lo, uint8_t hi, uint8_t size, uint8_t win, bool anchor_end) {
+  if (win >= size) return 0;
+  int span = hi - lo + 1;
+  int o = (span > win && anchor_end) ? hi + 1 - win : (lo + hi + 1 - win) / 2;
+  if (o < 0) o = 0;
+  if (o > size - win) o = size - win;
+  return (uint8_t)o;
 }
 
 bool showcase_eligible(ShowcaseSource src, bool seen, bool caught) {

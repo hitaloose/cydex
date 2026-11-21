@@ -66,7 +66,6 @@ extern const lv_img_dsc_t icon_ring_dashed_14;
 extern const lv_img_dsc_t icon_dash_box_96;
 extern const lv_img_dsc_t icon_dash_box_64;
 extern const lv_img_dsc_t icon_dash_pill_112;
-extern const lv_img_dsc_t icon_floor_140;
 extern const lv_img_dsc_t icon_play_18;
 extern const lv_img_dsc_t icon_tail_line_8;
 extern const lv_img_dsc_t icon_tail_fill_8;

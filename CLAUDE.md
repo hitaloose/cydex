@@ -37,7 +37,7 @@ Nome: **CYDex** (CYD + dex, lê-se "sai-dex"). Não usar "Poké"/"Pokémon" no n
 | 11 | `DetalheStatus.dc.html` | Ficha: Status | 6 barras (PS, Atq, Def, AtE, DfE, Vel) + total |
 | 12 | `DetalheEvol.dc.html` | Ficha: Evolução | Até 3 estágios 64×64 com nível entre eles |
 | 13 | `NaoVisto.dc.html` | Ficha: não visto | Tudo "???", abas Status/Evolução desativadas |
-| 14 | `Vitrine.dc.html` | Modo vitrine | Palco de 164 px (sprite até 2×) + painel fixo de 144 px: nome em 1 linha de 20 px com "…", tipos lado a lado, medidas, mini status; toque sai pro Menu. Tweak `naoVisto`: só nº, nome e sprite, o resto "???" |
+| 14 | `Vitrine.dc.html` | Modo vitrine | Carta 306×226: nome (16 px, 1 linha, "…") + tipos abreviados; janela de 144 (borda na cor do tipo) com o sprite 2× cortado; medidas + 6 status com rótulo e valor; rodapé "#nº · Geração" + status. Toque sai pro Menu. Tweak `naoVisto`: só nº, nome e sprite, o resto "???" |
 | 15 | `Aviso.dc.html` | Aviso | Faixa de 56 px por cima de qualquer tela com o aviso mais importante: barra na cor do aviso, ícone, título, "subtítulo · mensagem" (2 linhas), "+n" dos outros. Toque fecha |
 | 15b | `VitrineAviso.dc.html` | Avisos na Vitrine | Até 3 balões compactos de 162×50 (ícone + título, subtítulo) saindo do sprite, o mais importante em cima; toque num balão fecha só ele |
 
@@ -125,13 +125,14 @@ Status de espécie: círculo cheio accent com check = **capturado**; contorno mu
 ### Sprites
 
 - Vêm do SD. Base 96×96.
-- Ficha: 96×96 (1×). Evolução: 64×64. Grade: 48×48 (metade). Vitrine: até 2× (vizinho mais próximo) num palco de 164 px.
-- Usar só escalas inteiras ou metade; escala fracionária borra pixel art e custa mais. Exceção: a Vitrine mede as colunas opacas do sprite (`showcase_opaque_cols`) e reduz o zoom só o necessário pra caber no palco (`showcase_fit_zoom`). Seis sprites ocupam os 96 px inteiros, então 2× fixo exigiria 192 px. Cerca de 67 espécies ficam abaixo de 2× (a menor em ~1,7×).
+- Ficha: 96×96 (1×). Evolução: 64×64. Grade: 48×48 (metade). Vitrine: 96 em 2× (vizinho mais próximo) numa janela de 144, ou seja, 72 px do original.
+- Usar só escalas inteiras ou metade; escala fracionária borra pixel art e custa mais.
+- Corte da Vitrine no CYD, a partir do `sprites_96.bin` (sem arquivo próprio no SD): `showcase_opaque_box` acha a caixa opaca e `showcase_crop_origin` põe a janela de 72 no meio dela, presa no quadro; mais alta que 72, ancora embaixo (mantém os pés, corta o topo); mais larga, corta as laterais por igual. O `lv_img` fica com pivô (0,0), zoom 2× e posição −2×origem; a janela recorta (`clip_corner`) e desenha a borda por cima (`border_post`).
 
 ## Modo vitrine
 
 - Sempre ligado, mostra uma espécie por vez.
-- Layout: palco x=2 com 164 px, painel fixo x=172 com 144 px. O sprite fica centrado pela parte opaca, com o pé do quadro no fundo do palco. Nome sempre em 20 px numa linha (`ui_label_clamp`, "…" no fim). Os tipos ficam lado a lado (`ROW_WRAP`) e descem só se a dupla não couber.
+- Layout "carta" (cartão 306×226 em x=6, y=6, padding 6/10): cabeçalho de 22 px com o nome em 16 px numa linha (`ui_label_clamp`, "…") e os tipos abreviados à direita (`species_type_abbr`, 3 letras, `STR_TYPE_ABBR_*`); o nome fica com a largura que os chips deixam. Corpo: janela de 148×148 (borda 2 na cor do tipo 1, faint na não vista) e, à direita, medidas + status. Rodapé de 18 px + borda: "#nº · Geração X" (`STR_SC_FOOTER_FMT`) e a marca de status. Sem sombra no chão nem total.
 - Ajustes (salvos na NVS com `Preferences`, lidos ao entrar):
   - troca a cada: 30 s, 1, 2, 5 ou 15 min (padrão 1 min)
   - ordem: sequencial ou aleatória
@@ -140,7 +141,7 @@ Status de espécie: círculo cheio accent com check = **capturado**; contorno mu
   - ao ligar: Menu ou Vitrine (padrão Menu), em Ajustes › Navegação
 - Redesenha a tela inteira só na troca; entre trocas nada muda.
 - Desloca o layout 1–2 px a cada troca (evitar retenção de imagem no LCD).
-- Mini status: 6 barras sem rótulo na ordem PS, Atq, Def, AtE, DfE, Vel, escala até 150, valores ≥ 60 em accent, "Total N" em cima.
+- Status: 6 linhas de 14 px (PS, Atq, Def, AtE, DfE, Vel): rótulo muted, valor e barra de 4 px na escala até 150, ≥ 60 em accent. Não vista: valores "???" e trilhos vazios.
 
 ## Dados
 

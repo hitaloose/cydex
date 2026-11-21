@@ -34,11 +34,15 @@ void showcase_shift(uint32_t k, int8_t *dx, int8_t *dy);
 // Minutos pra mostrar todas (resumo do 05b).
 uint32_t showcase_cycle_minutes(uint16_t count, uint16_t interval_s);
 
-// Colunas opacas (primeira e última) de um sprite quadrado RGB565 com fundo
-// chroma key `key`. Falso se não houver pixel opaco.
-bool showcase_opaque_cols(const uint16_t *px, uint16_t size, uint16_t key, uint8_t *x0,
-                          uint8_t *x1);
+// Caixa opaca (colunas x0..x1, linhas y0..y1) de um sprite quadrado RGB565 com
+// fundo chroma key `key`. Falso se não houver pixel opaco.
+bool showcase_opaque_box(const uint16_t *px, uint16_t size, uint16_t key, uint8_t *x0,
+                         uint8_t *x1, uint8_t *y0, uint8_t *y1);
 
-// Zoom do LVGL (256 = 1x) pra uma parte opaca de `opaque_w` px caber em
-// `avail` px: 2x (512) quando cabe, senão o maior que cabe.
-uint16_t showcase_fit_zoom(uint16_t opaque_w, uint16_t avail);
+// Vitrine: o sprite 96 em 2x numa janela de 144 px mostra 72 px do original.
+constexpr uint8_t SHOWCASE_CROP = 72;
+// Início da janela de `win` px num eixo de `size` px cuja parte opaca vai de
+// `lo` a `hi`: centrada na parte opaca e presa em [0, size - win]. Parte opaca
+// maior que a janela com `anchor_end` (eixo vertical): o fim da janela fica no
+// `hi` (mantém os pés, corta o topo).
+uint8_t showcase_crop_origin(uint8_t lo, uint8_t hi, uint8_t size, uint8_t win, bool anchor_end);
