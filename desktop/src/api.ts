@@ -2,11 +2,29 @@
 import { invoke } from "@tauri-apps/api/core";
 import { t } from "./i18n";
 
+export interface Location {
+  name: string;
+  lat: number;
+  lon: number;
+  timezone: string;
+}
+
 export interface Config {
   host: string;
   key: string;
   power_sync: boolean;
   lang: string;
+  location?: Location | null;
+}
+
+/** GET /location do CYDex (api 3): campos null sem localidade ou sem hora. */
+export interface SunInfo {
+  lat: number | null;
+  lon: number | null;
+  tz: number | null;
+  night: boolean | null;
+  rise: string | null;
+  set: string | null;
 }
 
 export interface Info {
@@ -35,6 +53,7 @@ export interface Status {
   info: Info | null;
   key_ok: boolean | null;
   dex: DexSummary | null;
+  sun: SunInfo | null;
 }
 
 export interface SaveInfo {
@@ -110,4 +129,7 @@ export const api = {
   sendNotice: (body: Record<string, unknown>) => invoke<string>("send_notice", { body }),
   closeNotice: (id: string | null) => invoke<void>("close_notice", { id }),
   power: (sleep: boolean) => invoke<void>("power_now", { sleep }),
+  searchPlaces: (query: string) => invoke<Location[]>("search_places", { query }),
+  setLocation: (location: Location) => invoke<Status>("set_location", { location }),
+  clearLocation: () => invoke<Status>("clear_location"),
 };

@@ -135,7 +135,10 @@ Todas pedem `Authorization: Bearer <chave>`, menos `GET /`.
 | `DELETE /saves/<nome>` | Apaga o save | `204` |
 | `POST /saves/reload` | Relê os saves (como Ajustes › Sistema › Recarregar) | `200 {"saves","parsed","seen","caught"}` |
 | `GET /dex` | Bits visto/capturado em hex (bit = número − 1) | `200` |
-| `GET /` | Nome, versão, `api` (2 = tem `/saves` e `/dex`) e sinal do Wi-Fi | `200` |
+| `PUT /location?lat=…&lon=…&tz=…` | Localidade do brilho de dia/noite (o app manda; `tz` em minutos do UTC) | `204` |
+| `DELETE /location` | Esquece a localidade (só brilho de dia) | `204` |
+| `GET /location` | Localidade e o nascer/pôr do sol de hoje (`rise`, `set`, `night`) | `200` |
+| `GET /` | Nome, versão, `api` (2 = tem `/saves` e `/dex`; 3 = tem `/location`) e sinal do Wi-Fi | `200` |
 
 Chave errada dá `401`. Fechar um aviso não acende a tela nem toca nada. Enviar um save não relê nada sozinho: mande um `POST /saves/reload` depois do lote.
 

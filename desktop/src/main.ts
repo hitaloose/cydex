@@ -7,7 +7,7 @@ import { connectionView, dexView, noticesView, onUploadProgress, savesView, type
 
 type Tab = "dex" | "saves" | "notices" | "connection";
 
-let status: Status = { online: false, info: null, key_ok: null, dex: null };
+let status: Status = { online: false, info: null, key_ok: null, dex: null, sun: null };
 let current: Tab = "dex";
 let view: View | null = null;
 const saves = savesView();
@@ -16,7 +16,7 @@ const views: Record<Tab, () => View> = {
   dex: () => dexView(() => status),
   saves: () => saves,
   notices: () => noticesView(),
-  connection: () => connectionView(() => renderAll()),
+  connection: () => connectionView(() => renderAll(), () => status),
 };
 
 function renderTabs() {

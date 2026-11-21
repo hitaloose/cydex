@@ -8,6 +8,7 @@
 #include "net/wifi_mgr.h"
 #include "screens.h"
 #include "ui/icons/icons.h"
+#include "ui/power.h"
 #include "ui/settings_page.h"
 #include "ui/settings_widgets.h"
 #include "ui/widgets.h"
@@ -38,7 +39,9 @@ void row_display(lv_obj_t *body, lv_coord_t y, lv_coord_t h, uint8_t) {
   const AppSettings &st = settings();
   char off[16], summary[32];
   format_screen_off(st.screen_off_min, off, sizeof(off));
-  snprintf(summary, sizeof(summary), "%u%% · %s", st.brightness, off);
+  // O brilho que vale agora (de noite, o noturno).
+  snprintf(summary, sizeof(summary), "%u%% · %s",
+           power_is_night() ? st.brightness_night : st.brightness, off);
   set_link_row(body, y, h, &icon_sun_16, STR_SET_DISPLAY, summary, on_display, true);
 }
 

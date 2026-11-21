@@ -28,6 +28,11 @@ static const char *KEY_SC_ALL = "sc_all";  // antiga (bool vistos); lida só se 
 static const char *KEY_SC_SRC = "sc_src";
 static const char *KEY_SC_BRIGHT = "sc_bright";
 static const char *KEY_SC_BOOT = "sc_boot";
+static const char *KEY_BRIGHT_N = "bright_n";
+static const char *KEY_SC_BRIGHT_N = "sc_bright_n";
+static const char *KEY_LOC_LAT = "loc_lat";  // ausente = sem localidade
+static const char *KEY_LOC_LON = "loc_lon";
+static const char *KEY_LOC_TZ = "loc_tz";
 static const char *KEY_WIFI_ON = "wifi_on";
 static const char *KEY_WIFI_SSID = "wifi_ssid";
 static const char *KEY_WIFI_PASS = "wifi_pass";
@@ -62,6 +67,16 @@ void settings_init() {
   s.showcase_brightness =
       clamp_pct(p.isKey(KEY_SC_BRIGHT) ? p.getUChar(KEY_SC_BRIGHT) : d.showcase_brightness, 5);
   s.showcase_on_boot = p.isKey(KEY_SC_BOOT) ? p.getBool(KEY_SC_BOOT) : d.showcase_on_boot;
+  s.brightness_night =
+      clamp_pct(p.isKey(KEY_BRIGHT_N) ? p.getUChar(KEY_BRIGHT_N) : d.brightness_night, 10);
+  s.showcase_brightness_night = clamp_pct(
+      p.isKey(KEY_SC_BRIGHT_N) ? p.getUChar(KEY_SC_BRIGHT_N) : d.showcase_brightness_night, 5);
+  s.has_location = p.isKey(KEY_LOC_LAT) && p.isKey(KEY_LOC_LON);
+  if (s.has_location) {
+    s.lat = p.getFloat(KEY_LOC_LAT);
+    s.lon = p.getFloat(KEY_LOC_LON);
+    s.tz_min = p.isKey(KEY_LOC_TZ) ? p.getShort(KEY_LOC_TZ) : 0;
+  }
   s.wifi_on = p.isKey(KEY_WIFI_ON) ? p.getBool(KEY_WIFI_ON) : d.wifi_on;
   if (p.isKey(KEY_WIFI_SSID)) p.getString(KEY_WIFI_SSID, s.wifi_ssid, sizeof(s.wifi_ssid));
   if (p.isKey(KEY_WIFI_PASS)) p.getString(KEY_WIFI_PASS, s.wifi_pass, sizeof(s.wifi_pass));
@@ -79,6 +94,8 @@ void settings_init() {
         s.showcase_source == 2 ? "todos" : s.showcase_source == 1 ? "vistos" : "capt",
         s.showcase_brightness,
         s.showcase_on_boot ? " (abre no boot)" : "");
+  LOG_I(TAG, "noite=%u%%/%u%% local=%s%.3f,%.3f tz=%d", s.brightness_night,
+        s.showcase_brightness_night, s.has_location ? "" : "(nenhuma) ", s.lat, s.lon, s.tz_min);
   LOG_I(TAG, "wifi=%s rede=\"%s\"", s.wifi_on ? "ligado" : "desligado", s.wifi_ssid);
 }
 
@@ -98,6 +115,25 @@ void settings_save() {
   p.putUChar(KEY_SC_SRC, s.showcase_source);
   p.putUChar(KEY_SC_BRIGHT, s.showcase_brightness);
   p.putBool(KEY_SC_BOOT, s.showcase_on_boot);
+  p.putUChar(KEY_BRIGHT_N, s.brightness_night);
+  p.putUChar(KEY_SC_BRIGHT_N, s.showcase_brightness_night);
+  p.end();
+}
+
+void settings_save_location() {
+  const AppSettings &s = s_settings;
+  Preferences p;
+  p.begin(NS, false);
+  if (s.has_location) {
+    p.putFloat(KEY_LOC_LAT, s.lat);
+    p.putFloat(KEY_LOC_LON, s.lon);
+    p.putShort(KEY_LOC_TZ, s.tz_min);
+  } else {
+    // isKey antes: remove de chave ausente loga erro.
+    if (p.isKey(KEY_LOC_LAT)) p.remove(KEY_LOC_LAT);
+    if (p.isKey(KEY_LOC_LON)) p.remove(KEY_LOC_LON);
+    if (p.isKey(KEY_LOC_TZ)) p.remove(KEY_LOC_TZ);
+  }
   p.end();
 }
 

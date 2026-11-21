@@ -18,6 +18,13 @@ struct AppSettings {
   uint8_t showcase_source = 0;      // ShowcaseSource (logic/Showcase.h): 0 capt, 1 vistos, 2 todos
   uint8_t showcase_brightness = 35;  // 5..100 %
   bool showcase_on_boot = false;    // Boot vai direto pra Vitrine
+  // Depois do pôr do sol (logic/Sun). Só valem com localidade e hora (NTP).
+  uint8_t brightness_night = 30;           // 10..100 %
+  uint8_t showcase_brightness_night = 15;  // 5..100 %
+  // Localidade: vem do app do computador (PUT /location). settings_save_location().
+  bool has_location = false;
+  float lat = 0, lon = 0;  // graus, leste positivo
+  int16_t tz_min = 0;      // fuso (min a leste do UTC), só pra mostrar horários
   // Wi-Fi (05d) e avisos do Claude Code. Gravados por settings_save_wifi().
   bool wifi_on = false;
   char wifi_ssid[33] = "";          // rede salva ("" = nenhuma)
@@ -31,6 +38,8 @@ AppSettings &settings();
 void settings_save();
 // Grava só o Wi-Fi (rede, senha, ligado). A chave do hook é gerada uma vez.
 void settings_save_wifi();
+// Grava (ou apaga, se !has_location) só a localidade.
+void settings_save_location();
 
 // Salva e aplica. A tela atual precisa ser remontada pra mostrar o idioma novo.
 void settings_set_lang(LangId lang);

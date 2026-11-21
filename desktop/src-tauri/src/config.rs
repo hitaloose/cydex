@@ -18,6 +18,21 @@ pub struct Config {
     pub power_sync: bool,
     /// "" = idioma do sistema; "pt-BR" ou "en".
     pub lang: String,
+    /// Localidade do brilho de dia/noite (pôr do sol, `PUT /location`).
+    /// Só muda pelos comandos `set_location`/`clear_location`.
+    pub location: Option<Location>,
+}
+
+/// Cidade escolhida na busca (`geocode`). O CYD recebe lat/lon e o fuso
+/// em minutos; o nome IANA fica aqui pra recalcular o fuso no horário de verão.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Location {
+    /// "São Paulo, São Paulo, Brasil".
+    pub name: String,
+    pub lat: f64,
+    pub lon: f64,
+    /// "America/Sao_Paulo".
+    pub timezone: String,
 }
 
 impl Default for Config {
@@ -27,6 +42,7 @@ impl Default for Config {
             key: String::new(),
             power_sync: true,
             lang: String::new(),
+            location: None,
         }
     }
 }
@@ -127,9 +143,27 @@ mod tests {
     fn save_and_load_roundtrip() {
         let dir = std::env::temp_dir().join(format!("cydex-cfg-{}", std::process::id()));
         let path = file_in(dir.clone());
-        let cfg = Config { host: "10.0.0.2".into(), key: "deadbeef".into(), power_sync: false, lang: "en".into() };
+        let cfg = Config {
+            host: "10.0.0.2".into(),
+            key: "deadbeef".into(),
+            power_sync: false,
+            lang: "en".into(),
+            location: Some(Location {
+                name: "Lisboa, Portugal".into(),
+                lat: 38.71667,
+                lon: -9.13333,
+                timezone: "Europe/Lisbon".into(),
+            }),
+        };
         save(&path, &cfg).unwrap();
         assert_eq!(load(&path), cfg);
         let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn old_config_without_location_loads() {
+        let cfg: Config = serde_json::from_str(r#"{"host":"cydex.local","key":"ab","power_sync":true,"lang":""}"#).unwrap();
+        assert_eq!(cfg.location, None);
+        assert_eq!(cfg.key, "ab");
     }
 }

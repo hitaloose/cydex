@@ -1,16 +1,25 @@
 #include "power.h"
 
+#include <Arduino.h>
 #include <lvgl.h>
+
+#include <ctime>
 
 #include "data/Settings.h"
 #include "hal/backlight.h"
 #include "hal/speaker.h"
 #include "hal/touch.h"
+#include "logic/Sun.h"
 #include "net/notice_server.h"
 #include "ui/nav.h"
 #include "util/log.h"
 
 static uint8_t s_level = 70;
+// Qual brilho dos Ajustes vale agora. Fixed = power_set_level (prévia).
+enum class Mode : uint8_t { Fixed, Normal, Showcase };
+static Mode s_mode = Mode::Normal;
+static bool s_night = false;
+static uint32_t s_sun_check = 0;  // millis() da última conta do sol
 static bool s_asleep = false;
 // O computador dormiu (POST /sleep). Enquanto houver aviso aberto a tela fica
 // acesa; quando o último fecha, apaga de novo. Toque ou /wake desfazem.
@@ -48,12 +57,54 @@ void power_init() {
   power_use_normal_level();
 }
 
-void power_set_level(uint8_t percent) {
+static void apply_level(uint8_t percent) {
   s_level = percent;
   if (!s_asleep) backlight_set(percent);
 }
 
-void power_use_normal_level() { power_set_level(settings().brightness); }
+static bool compute_night() {
+  const AppSettings &st = settings();
+  if (!st.has_location) return false;
+  time_t now = time(nullptr);
+  if ((int64_t)now < SUN_VALID_TIME) return false;  // sem NTP ainda
+  return sun_is_night((int64_t)now, st.lat, st.lon);
+}
+
+static void apply_mode() {
+  const AppSettings &st = settings();
+  if (s_mode == Mode::Normal) apply_level(s_night ? st.brightness_night : st.brightness);
+  else if (s_mode == Mode::Showcase)
+    apply_level(s_night ? st.showcase_brightness_night : st.showcase_brightness);
+}
+
+// Recalcula o dia/noite; reaplica o brilho se mudou (ou se `force`).
+static void sun_update(bool force) {
+  s_sun_check = millis();
+  bool night = compute_night();
+  if (night == s_night && !force) return;
+  if (night != s_night) LOG_I("power", "%s", night ? "anoiteceu" : "amanheceu");
+  s_night = night;
+  apply_mode();
+}
+
+void power_set_level(uint8_t percent) {
+  s_mode = Mode::Fixed;
+  apply_level(percent);
+}
+
+void power_use_normal_level() {
+  s_mode = Mode::Normal;
+  sun_update(true);
+}
+
+void power_use_showcase_level() {
+  s_mode = Mode::Showcase;
+  sun_update(true);
+}
+
+bool power_is_night() { return s_night; }
+
+void power_location_changed() { sun_update(true); }
 
 static void remote_off() {
   s_asleep = true;
@@ -63,6 +114,8 @@ static void remote_off() {
 
 void power_tick() {
   speaker_update();
+  // Uma vez por minuto basta (e pega o NTP chegando depois do boot).
+  if (millis() - s_sun_check >= 60000u) sun_update(false);
   if (s_remote) {
     if (!s_asleep && notices().size() == 0) remote_off();
     return;

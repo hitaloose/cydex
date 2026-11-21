@@ -6,11 +6,13 @@
 
 #include <cstdio>
 #include <cstring>
+#include <ctime>
 
 #include "data/Settings.h"
 #include "data/StatusStore.h"
 #include "data/paths.h"
 #include "hal/sd.h"
+#include "logic/Sun.h"
 #include "net/HttpRequest.h"
 #include "notify/NoticeJson.h"
 #include "saves/SaveFormat.h"
@@ -182,7 +184,8 @@ static bool saves_path(const char *path, const char **name) {
 static bool needs_key(const char *path) {
   const char *id;
   return notices_path(path, &id) || saves_path(path, &id) || strcmp(path, "/dex") == 0 ||
-         strcmp(path, "/sleep") == 0 || strcmp(path, "/wake") == 0;
+         strcmp(path, "/location") == 0 || strcmp(path, "/sleep") == 0 ||
+         strcmp(path, "/wake") == 0;
 }
 
 static bool authorized() { return strcmp(s_req.bearer(), settings().hook_key) == 0; }
@@ -503,6 +506,73 @@ static void get_dex() {
   reply(200, "OK", body);
 }
 
+// GET /location: {"lat","lon","tz","night","rise","set"} ({} sem localidade).
+// rise/set em "HH:MM" no fuso dado; null sem hora (NTP) ou no dia/noite polar.
+static void get_location() {
+  const AppSettings &st = settings();
+  if (!st.has_location) {
+    reply(200, "OK", "{}");
+    return;
+  }
+  char rise[8] = "null", set[8] = "null", night[6] = "null";
+  time_t now = time(nullptr);
+  if ((int64_t)now >= SUN_VALID_TIME) {
+    strcpy(night, sun_is_night((int64_t)now, st.lat, st.lon) ? "true" : "false");
+    SunDay d = sun_day((int64_t)now, st.lat, st.lon);
+    if (d.kind == SunKind::Normal) {
+      char t[6];
+      sun_format_hhmm(d.rise, st.tz_min, t, sizeof(t));
+      snprintf(rise, sizeof(rise), "\"%s\"", t);
+      sun_format_hhmm(d.set, st.tz_min, t, sizeof(t));
+      snprintf(set, sizeof(set), "\"%s\"", t);
+    }
+  }
+  char body[128];
+  snprintf(body, sizeof(body), "{\"lat\":%.4f,\"lon\":%.4f,\"tz\":%d,\"night\":%s,\"rise\":%s,\"set\":%s}",
+           st.lat, st.lon, st.tz_min, night, rise, set);
+  reply(200, "OK", body);
+}
+
+static void location_route(bool is_get, bool is_delete) {
+  bool is_put = strcmp(s_req.method(), "PUT") == 0;
+  if (is_get) {
+    get_location();
+    return;
+  }
+  AppSettings &st = settings();
+  if (is_delete) {
+    st.has_location = false;
+    settings_save_location();
+    power_location_changed();
+    LOG_I(TAG, "localidade apagada");
+    reply(204, "No Content");
+    return;
+  }
+  if (!is_put) {
+    reply(405, "Method Not Allowed");
+    return;
+  }
+  float lat, lon;
+  int16_t tz;
+  const char *bad = sun_parse_location(s_req.query(), &lat, &lon, &tz);
+  if (bad) {
+    reply_error(bad);
+    return;
+  }
+  // O app reenvia a cada mudança de fuso; só grava se mudou.
+  bool changed = !st.has_location || st.lat != lat || st.lon != lon || st.tz_min != tz;
+  st.has_location = true;
+  st.lat = lat;
+  st.lon = lon;
+  st.tz_min = tz;
+  if (changed) {
+    settings_save_location();
+    LOG_I(TAG, "localidade %.4f,%.4f tz=%d", lat, lon, tz);
+  }
+  power_location_changed();
+  reply(204, "No Content");
+}
+
 static void finish() {
   const char *method = s_req.method();
   const char *path = s_req.path();
@@ -511,9 +581,9 @@ static void finish() {
   bool is_delete = strcmp(method, "DELETE") == 0;
 
   if (strcmp(path, "/") == 0 && is_get) {
-    // api 2: /saves e /dex (o app do PC confere antes de mostrar essas telas).
+    // api 2: /saves e /dex; api 3: /location (o app do PC confere antes de usar).
     char body[96];
-    snprintf(body, sizeof(body), "{\"name\":\"CYDex\",\"version\":\"" CYDEX_VERSION "\",\"api\":2,\"rssi\":%d}",
+    snprintf(body, sizeof(body), "{\"name\":\"CYDex\",\"version\":\"" CYDEX_VERSION "\",\"api\":3,\"rssi\":%d}",
              (int)WiFi.RSSI());
     reply(200, "OK", body);
     return;
@@ -531,6 +601,10 @@ static void finish() {
   if (strcmp(path, "/dex") == 0) {
     if (is_get) get_dex();
     else reply(405, "Method Not Allowed");
+    return;
+  }
+  if (strcmp(path, "/location") == 0) {
+    location_route(is_get, is_delete);
     return;
   }
 

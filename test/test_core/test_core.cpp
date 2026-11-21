@@ -15,6 +15,7 @@
 #include "logic/RowPages.h"
 #include "logic/Search.h"
 #include "logic/Showcase.h"
+#include "logic/Sun.h"
 #include "saves/SaveFormat.h"
 #include "saves/SaveName.h"
 #include "saves/gen3/Gen3Sections.h"
@@ -638,6 +639,92 @@ void test_save_name_rejects() {
   TEST_ASSERT_FALSE(save_name_decode("emerald.sav", tiny, sizeof(tiny)));
 }
 
+// ---------- Sun ----------
+
+// UTC de uma data às 12:00 (dias desde 1970 por algoritmo civil).
+static int64_t utc_noon(int y, int m, int d) {
+  y -= m <= 2;
+  int64_t era = (y >= 0 ? y : y - 399) / 400;
+  int64_t yoe = y - era * 400;
+  int64_t doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+  int64_t doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+  return (era * 146097 + doe - 719468) * 86400 + 12 * 3600;
+}
+
+static void assert_hhmm(const char *expect, int64_t utc_s, int16_t tz, int tol_min) {
+  char got[8];
+  sun_format_hhmm(utc_s, tz, got, sizeof(got));
+  int e = (expect[0] - '0') * 600 + (expect[1] - '0') * 60 + (expect[3] - '0') * 10 + (expect[4] - '0');
+  int g = (got[0] - '0') * 600 + (got[1] - '0') * 60 + (got[3] - '0') * 10 + (got[4] - '0');
+  char msg[48];
+  snprintf(msg, sizeof(msg), "esperado %s, veio %s", expect, got);
+  TEST_ASSERT_INT_WITHIN_MESSAGE(tol_min, e, g, msg);
+}
+
+void test_sun_times_known_cities() {
+  // São Paulo (−03): inverno 06:47–17:28, verão 05:16–18:52 (NOAA completo).
+  SunDay d = sun_day(utc_noon(2026, 6, 21), -23.5505, -46.6333);
+  TEST_ASSERT_EQUAL(SunKind::Normal, d.kind);
+  assert_hhmm("06:47", d.rise, -180, 2);
+  assert_hhmm("17:28", d.set, -180, 2);
+  d = sun_day(utc_noon(2026, 12, 21), -23.5505, -46.6333);
+  assert_hhmm("05:16", d.rise, -180, 2);
+  assert_hhmm("18:52", d.set, -180, 2);
+  // Lisboa (+01 no verão): 06:11–21:04.
+  d = sun_day(utc_noon(2026, 6, 21), 38.7223, -9.1393);
+  assert_hhmm("06:11", d.rise, 60, 2);
+  assert_hhmm("21:04", d.set, 60, 2);
+}
+
+void test_sun_is_night_and_day_boundary() {
+  int64_t noon = utc_noon(2026, 6, 21);
+  // São Paulo: 15 h UTC = 12 h local (dia); 01 h UTC do dia seguinte = 22 h local.
+  TEST_ASSERT_FALSE(sun_is_night(noon + 3 * 3600, -23.55, -46.63));
+  TEST_ASSERT_TRUE(sun_is_night(noon + 13 * 3600, -23.55, -46.63));
+  // Madrugada local (03 h UTC = 00 h local).
+  TEST_ASSERT_TRUE(sun_is_night(noon - 9 * 3600, -23.55, -46.63));
+  // Tóquio (+09): 12 h UTC = 21 h local, noite; 03 h UTC = 12 h local, dia.
+  TEST_ASSERT_TRUE(sun_is_night(noon, 35.68, 139.69));
+  TEST_ASSERT_FALSE(sun_is_night(noon - 9 * 3600, 35.68, 139.69));
+  // O "dia" do pôr do sol é o do dia solar local, mesmo cruzando 00 h UTC.
+  SunDay a = sun_day(noon + 13 * 3600, -23.55, -46.63);
+  SunDay b = sun_day(noon, -23.55, -46.63);
+  TEST_ASSERT_EQUAL_INT64(b.set, a.set);
+}
+
+void test_sun_polar() {
+  TEST_ASSERT_EQUAL(SunKind::PolarDay, sun_day(utc_noon(2026, 6, 21), 69.65, 18.96).kind);
+  TEST_ASSERT_EQUAL(SunKind::PolarNight, sun_day(utc_noon(2026, 12, 21), 69.65, 18.96).kind);
+  TEST_ASSERT_FALSE(sun_is_night(utc_noon(2026, 6, 21), 69.65, 18.96));
+  TEST_ASSERT_TRUE(sun_is_night(utc_noon(2026, 12, 21), 69.65, 18.96));
+}
+
+void test_sun_format_wraps() {
+  char out[8];
+  sun_format_hhmm(0, -180, out, sizeof(out));
+  TEST_ASSERT_EQUAL_STRING("21:00", out);
+  sun_format_hhmm(23 * 3600 + 30 * 60, 60, out, sizeof(out));
+  TEST_ASSERT_EQUAL_STRING("00:30", out);
+}
+
+void test_sun_parse_location() {
+  float lat = 0, lon = 0;
+  int16_t tz = 0;
+  TEST_ASSERT_NULL(sun_parse_location("lat=-23.5505&lon=-46.6333&tz=-180", &lat, &lon, &tz));
+  TEST_ASSERT_FLOAT_WITHIN(1e-4, -23.5505f, lat);
+  TEST_ASSERT_FLOAT_WITHIN(1e-4, -46.6333f, lon);
+  TEST_ASSERT_EQUAL(-180, tz);
+  TEST_ASSERT_NULL(sun_parse_location("tz=540&lon=139.69&lat=35.68", &lat, &lon, &tz));
+  TEST_ASSERT_EQUAL_STRING("lat", sun_parse_location("", &lat, &lon, &tz));
+  TEST_ASSERT_EQUAL_STRING("lat", sun_parse_location("lat=91&lon=0&tz=0", &lat, &lon, &tz));
+  TEST_ASSERT_EQUAL_STRING("lat", sun_parse_location("lat=abc&lon=0&tz=0", &lat, &lon, &tz));
+  TEST_ASSERT_EQUAL_STRING("lon", sun_parse_location("lat=0&lon=180.5&tz=0", &lat, &lon, &tz));
+  TEST_ASSERT_EQUAL_STRING("lon", sun_parse_location("lat=0&tz=0", &lat, &lon, &tz));
+  TEST_ASSERT_EQUAL_STRING("tz", sun_parse_location("lat=0&lon=0&tz=900", &lat, &lon, &tz));
+  TEST_ASSERT_EQUAL_STRING("tz", sun_parse_location("lat=0&lon=0&tz=1.5", &lat, &lon, &tz));
+  TEST_ASSERT_EQUAL_STRING("tz", sun_parse_location("lat=0&lon=0", &lat, &lon, &tz));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_generation_boundaries);
@@ -673,5 +760,10 @@ int main() {
   RUN_TEST(test_gen3_corrupt_is_rejected);
   RUN_TEST(test_save_name_decodes_and_accepts);
   RUN_TEST(test_save_name_rejects);
+  RUN_TEST(test_sun_times_known_cities);
+  RUN_TEST(test_sun_is_night_and_day_boundary);
+  RUN_TEST(test_sun_polar);
+  RUN_TEST(test_sun_format_wraps);
+  RUN_TEST(test_sun_parse_location);
   return UNITY_END();
 }

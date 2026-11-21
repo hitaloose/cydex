@@ -79,6 +79,34 @@ pub struct NoticeInfo {
     pub age: u64,
 }
 
+/// `GET /location` (api 3). Sem localidade no CYD, tudo None.
+#[derive(Deserialize, Serialize, Debug, Clone, Default, PartialEq)]
+pub struct SunInfo {
+    #[serde(default)]
+    pub lat: Option<f64>,
+    #[serde(default)]
+    pub lon: Option<f64>,
+    /// Fuso (min a leste do UTC) usado pra mostrar os horários.
+    #[serde(default)]
+    pub tz: Option<i32>,
+    /// None = o CYD ainda não tem hora (NTP).
+    #[serde(default)]
+    pub night: Option<bool>,
+    /// "HH:MM" no fuso acima; None sem hora ou no dia/noite polar.
+    #[serde(default)]
+    pub rise: Option<String>,
+    #[serde(default)]
+    pub set: Option<String>,
+}
+
+impl SunInfo {
+    /// O CYD já tem essa localidade? O firmware guarda em float (~1e-6°).
+    pub fn matches(&self, lat: f64, lon: f64, tz: i32) -> bool {
+        let close = |a: Option<f64>, b: f64| a.is_some_and(|a| (a - b).abs() < 1e-3);
+        close(self.lat, lat) && close(self.lon, lon) && self.tz == Some(tz)
+    }
+}
+
 #[derive(Deserialize)]
 struct DexRaw {
     count: u16,
@@ -261,12 +289,57 @@ impl Api {
         self.send(self.request(t, Method::DELETE, &path)).await.map(|_| ())
     }
 
+    pub async fn location(&self, t: &Target<'_>) -> Result<SunInfo> {
+        self.json(self.request(t, Method::GET, "/location")).await
+    }
+
+    /// `PUT /location?lat=…&lon=…&tz=…` (sem corpo). 4 casas (~11 m) cabem na
+    /// query de 47 B do firmware.
+    pub async fn set_location(&self, t: &Target<'_>, lat: f64, lon: f64, tz_min: i32) -> Result<()> {
+        let path = location_path(lat, lon, tz_min);
+        self.send(self.request(t, Method::PUT, &path)).await.map(|_| ())
+    }
+
+    pub async fn clear_location(&self, t: &Target<'_>) -> Result<()> {
+        self.send(self.request(t, Method::DELETE, "/location")).await.map(|_| ())
+    }
+
     /// `POST /sleep` ou `/wake`, uma tentativa curta. As repetições ficam em
     /// quem chama (lib.rs), que desiste se chegar um evento mais novo.
     pub async fn power(&self, t: &Target<'_>, sleep: bool) -> Result<()> {
         let path = if sleep { "/sleep" } else { "/wake" };
         let req = self.request(t, Method::POST, path).timeout(Duration::from_secs(3));
         self.send(req).await.map(|_| ())
+    }
+}
+
+fn location_path(lat: f64, lon: f64, tz_min: i32) -> String {
+    format!("/location?lat={lat:.4}&lon={lon:.4}&tz={tz_min}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn location_query_fits_firmware_buffer() {
+        // Pior caso: sinal e 3 dígitos em tudo. O firmware guarda 47 B de query.
+        let path = location_path(-89.99999, -179.99999, -720);
+        let query = path.split_once('?').unwrap().1;
+        assert_eq!(query, "lat=-90.0000&lon=-180.0000&tz=-720");
+        assert!(query.len() <= 47);
+    }
+
+    #[test]
+    fn sun_info_matches_with_float_rounding() {
+        let info: SunInfo =
+            serde_json::from_str(r#"{"lat":-23.5475,"lon":-46.6361,"tz":-180,"night":false,"rise":"06:01","set":null}"#)
+                .unwrap();
+        assert!(info.matches(-23.54750001, -46.63611, -180));
+        assert!(!info.matches(-23.5475, -46.6361, -120));
+        assert!(!SunInfo::default().matches(0.0, 0.0, 0));
+        let empty: SunInfo = serde_json::from_str("{}").unwrap();
+        assert_eq!(empty, SunInfo::default());
     }
 }
 

@@ -1,7 +1,7 @@
 // As quatro abas: Dex, Saves, Avisos e Conexão.
 import { ask, open } from "@tauri-apps/plugin-dialog";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
-import { api, errorText, type Config, type NoticeInfo, type SaveInfo, type Status, type UploadReport } from "./api";
+import { api, errorText, type ApiError, type Config, type Location, type NoticeInfo, type SaveInfo, type Status, type UploadReport } from "./api";
 import { busy, el, svg, toast } from "./dom";
 import { lang, setLang, t } from "./i18n";
 
@@ -355,8 +355,103 @@ export function noticesView(): View {
 
 // ---------- Conexão ----------
 
-export function connectionView(onLangChange: () => void): View {
+// ---------- Localidade (brilho de dia/noite) ----------
+
+/// Cartão da cidade: busca no Open-Meteo (pelo Rust), grava e o status manda
+/// pro CYDex. `draw` repinta quando chega status novo.
+function locationCard(cfg: Config, getStatus: () => Status) {
+  let location: Location | null = cfg.location ?? null;
+  const current = el("div", { class: "stack" });
+  const results = el("div", { class: "found" });
+  const input = el("input", { type: "text", placeholder: t("loc.placeholder"), spellcheck: "false", autocomplete: "off" });
+  input.style.flex = "1";
+
+  const draw = (st: Status) => {
+    const lines: HTMLElement[] = [];
+    const fwOld = st.online && st.info && st.info.api < 3;
+    if (!location) {
+      lines.push(el("div", { class: "muted small" }, t("loc.unset")));
+    } else {
+      const remove = el("button", { class: "btn ghost" }, t("loc.remove"));
+      remove.onclick = () =>
+        busy(remove, async () => {
+          try {
+            await api.clearLocation();
+            location = null;
+            toast(t("loc.removed"));
+            draw(getStatus());
+          } catch (e) {
+            toast(errorText(e), true);
+          }
+        });
+      lines.push(el("div", { class: "row" }, el("strong", {}, location.name), remove));
+      const sun = st.sun;
+      let info: string;
+      if (fwOld) info = t("loc.old_fw");
+      else if (!st.online || !sun || sun.lat === null) info = t("loc.pending");
+      else if (sun.night === null) info = t("loc.no_clock");
+      else if (sun.rise && sun.set) info = t("loc.times", { r: sun.rise, s: sun.set });
+      else info = t("loc.polar");
+      lines.push(el("div", { class: "msg" }, info));
+    }
+    current.replaceChildren(...lines);
+  };
+
+  const searchBtn = el("button", { class: "btn" }, t("loc.search"));
+  const search = () =>
+    busy(searchBtn, async () => {
+      results.replaceChildren(el("span", { class: "muted small" }, t("loc.searching")));
+      try {
+        const list = await api.searchPlaces(input.value);
+        if (!list.length) {
+          results.replaceChildren(el("span", { class: "muted small" }, t("loc.none")));
+          return;
+        }
+        results.replaceChildren(
+          ...list.map((place) => {
+            const b = el("button", { class: "btn ghost" }, place.name);
+            b.onclick = () =>
+              busy(b, async () => {
+                try {
+                  const st = await api.setLocation(place);
+                  location = place;
+                  results.replaceChildren();
+                  input.value = "";
+                  if (st.sun && st.sun.lat !== null) toast(t("loc.saved"));
+                  draw(st);
+                } catch (e) {
+                  toast(errorText(e), true);
+                }
+              });
+            return b;
+          }),
+        );
+      } catch (e) {
+        const err = e as ApiError;
+        results.replaceChildren(el("div", { class: "msg error" }, t("loc.search_err", { d: err?.detail ?? String(e) })));
+      }
+    });
+  searchBtn.onclick = search;
+  input.onkeydown = (ev) => {
+    if (ev.key === "Enter") search();
+  };
+
+  draw(getStatus());
+  const card = el(
+    "div",
+    { class: "card stack" },
+    el("div", { class: "muted small" }, t("loc.hint")),
+    current,
+    el("div", { class: "row" }, input, searchBtn),
+    results,
+  );
+  return { card, draw };
+}
+
+export function connectionView(onLangChange: () => void, getStatus: () => Status): View {
+  let loc: ReturnType<typeof locationCard> | null = null;
   return {
+    onStatus: (st) => loc?.draw(st),
     async render(root) {
       const cfg: Config = await api.getConfig();
       const host = el("input", { type: "text", value: cfg.host, spellcheck: "false", autocomplete: "off" });
@@ -419,7 +514,7 @@ export function connectionView(onLangChange: () => void): View {
       const save = el("button", { class: "btn primary" }, t("conn.save"));
       save.onclick = () =>
         busy(save, async () => {
-          const next = await api.saveConfig({ host: host.value, key: key.value, power_sync: sync.checked, lang: langSel.value });
+          const next = await api.saveConfig({ ...cfg, host: host.value, key: key.value, power_sync: sync.checked, lang: langSel.value });
           host.value = next.host;
           key.value = next.key;
           const langChanged = next.lang !== cfg.lang;
@@ -465,6 +560,8 @@ export function connectionView(onLangChange: () => void): View {
           el("label", { class: "check" }, auto, t("conn.autostart")),
           el("label", { class: "field" }, t("conn.lang"), langSel),
         ),
+        el("h3", {}, t("loc.title")),
+        (loc = locationCard(cfg, getStatus)).card,
       );
       host.style.flex = "1";
       if (cfg.key) test();

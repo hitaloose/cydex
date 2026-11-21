@@ -2,19 +2,21 @@
 //!
 //! - apaga/acende a tela do CYDex junto com o computador (`power/`);
 //! - lista, envia e apaga saves e recarrega o status (`/saves`);
-//! - mostra o progresso da Dex (`/dex`) e os avisos abertos (`/notices`).
+//! - mostra o progresso da Dex (`/dex`) e os avisos abertos (`/notices`);
+//! - manda a localidade do brilho de dia/noite (`/location`, `geocode`).
 
 mod client;
 mod config;
 mod dex;
 mod discovery;
+mod geocode;
 mod locate;
 mod power;
 mod save_name;
 mod tray_text;
 
-use client::{Api, ApiError, Info, NoticeInfo, ReloadResult, SaveInfo, Target};
-use config::Config;
+use client::{Api, ApiError, Info, NoticeInfo, ReloadResult, SaveInfo, SunInfo, Target};
+use config::{Config, Location};
 use dex::DexSummary;
 use power::PowerEvent;
 use serde::Serialize;
@@ -42,6 +44,8 @@ pub struct Status {
     /// None = sem chave configurada.
     pub key_ok: Option<bool>,
     pub dex: Option<DexSummary>,
+    /// Nascer/pôr do sol que o CYD calculou (api 3).
+    pub sun: Option<SunInfo>,
 }
 
 struct TrayItems {
@@ -105,7 +109,29 @@ async fn fetch_status(api: &Api, cfg: &Config) -> Status {
     } else {
         st.key_ok = Some(api.check_key(&t).await.is_ok());
     }
+    if st.key_ok == Some(true) && info.api >= 3 {
+        st.sun = sync_location(api, cfg).await;
+    }
     st
+}
+
+/// Confere a localidade do CYD e reenvia se não bater com a do app: cidade
+/// nova, CYD que perdeu a NVS ou fuso que mudou (horário de verão).
+async fn sync_location(api: &Api, cfg: &Config) -> Option<SunInfo> {
+    let t = target(cfg);
+    let mut sun = api.location(&t).await.ok()?;
+    let Some(loc) = &cfg.location else { return Some(sun) };
+    let Some(tz) = geocode::offset_minutes(&loc.timezone) else { return Some(sun) };
+    if !sun.matches(loc.lat, loc.lon, tz) {
+        match api.set_location(&t, loc.lat, loc.lon, tz).await {
+            Ok(()) => {
+                log::info!("localidade enviada: {} ({:.4}, {:.4}, tz {tz})", loc.name, loc.lat, loc.lon);
+                sun = api.location(&t).await.ok()?;
+            }
+            Err(e) => log::warn!("localidade: {e}"),
+        }
+    }
+    Some(sun)
 }
 
 async fn refresh(app: &AppHandle) -> Status {
@@ -204,9 +230,11 @@ fn get_lang(state: State<AppState>) -> String {
 
 #[tauri::command]
 async fn save_config(app: AppHandle, cfg: Config) -> CmdResult<Config> {
-    let cfg = cfg.normalized();
+    let mut cfg = cfg.normalized();
     {
         let state = app.state::<AppState>();
+        // A janela não manda a localidade: ela só muda por set/clear_location.
+        cfg.location = state.cfg().location;
         config::save(&state.cfg_path, &cfg).map_err(|e| ApiError::Io(e.to_string()))?;
         *state.cfg.lock().unwrap() = cfg.clone();
     }
@@ -364,6 +392,39 @@ async fn power_now(state: State<'_, AppState>, sleep: bool) -> CmdResult<()> {
     state.api.power(&target(&cfg), sleep).await
 }
 
+#[tauri::command]
+async fn search_places(state: State<'_, AppState>, query: String) -> CmdResult<Vec<geocode::Place>> {
+    let lang = lang_of(&state.cfg());
+    geocode::search(&query, &lang).await.map_err(ApiError::Io)
+}
+
+fn store_location(app: &AppHandle, location: Option<Location>) -> CmdResult<Config> {
+    let state = app.state::<AppState>();
+    let mut cfg = state.cfg();
+    cfg.location = location;
+    config::save(&state.cfg_path, &cfg).map_err(|e| ApiError::Io(e.to_string()))?;
+    *state.cfg.lock().unwrap() = cfg.clone();
+    Ok(cfg)
+}
+
+/// Grava a cidade e manda pro CYD (no próximo status, se estiver fora do ar).
+#[tauri::command]
+async fn set_location(app: AppHandle, location: Location) -> CmdResult<Status> {
+    store_location(&app, Some(location))?;
+    Ok(refresh(&app).await)
+}
+
+/// Esquece a cidade e tira do CYD (volta ao brilho de dia o tempo todo).
+#[tauri::command]
+async fn clear_location(app: AppHandle) -> CmdResult<Status> {
+    let cfg = store_location(&app, None)?;
+    match app.state::<AppState>().api.clear_location(&target(&cfg)).await {
+        Ok(()) | Err(ApiError::Offline) => {}
+        Err(e) => return Err(e),
+    }
+    Ok(refresh(&app).await)
+}
+
 // ---------- janela e bandeja ----------
 
 fn show_window(app: &AppHandle) {
@@ -514,6 +575,9 @@ pub fn run() {
             send_notice,
             close_notice,
             power_now,
+            search_places,
+            set_location,
+            clear_location,
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar o CYDex");
