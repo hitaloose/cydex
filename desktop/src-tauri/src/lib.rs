@@ -8,6 +8,7 @@ mod client;
 mod config;
 mod dex;
 mod discovery;
+mod locate;
 mod power;
 mod save_name;
 mod tray_text;
@@ -229,11 +230,28 @@ async fn test_connection(state: State<'_, AppState>, host: String, key: String) 
     Ok(TestResult { info, key_ok })
 }
 
+/// mDNS próprio, o nome padrão pelo resolvedor do sistema e, se nada disso
+/// achar (app empacotado no macOS), varredura da sub-rede.
 #[tauri::command]
 async fn discover() -> Vec<discovery::Found> {
-    tauri::async_runtime::spawn_blocking(|| discovery::browse(Duration::from_secs(3)))
+    let mut found = tauri::async_runtime::spawn_blocking(|| discovery::browse(Duration::from_secs(3)))
         .await
-        .unwrap_or_default()
+        .unwrap_or_default();
+    if let Ok(ip) = locate::resolve("cydex.local").await {
+        let f = discovery::Found { host: "cydex.local".into(), ip: ip.to_string() };
+        if !found.iter().any(|x| x.ip == f.ip) {
+            found.push(f);
+        }
+    }
+    if found.is_empty() {
+        found = locate::scan(false)
+            .await
+            .into_iter()
+            .map(|ip| discovery::Found { host: ip.to_string(), ip: ip.to_string() })
+            .collect();
+    }
+    log::info!("procurar: {found:?}");
+    found
 }
 
 #[tauri::command]
@@ -424,6 +442,17 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_window(app)))
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec![HIDDEN_ARG])))
         .plugin(tauri_plugin_dialog::init())
+        // Log em arquivo (macOS: ~/Library/Logs/dev.cydex.desktop/CYDex.log).
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .clear_targets()
+                .level(log::LevelFilter::Info)
+                .level_for("cydex_desktop_lib", log::LevelFilter::Debug)
+                .target(tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir { file_name: Some("CYDex".into()) }))
+                .target(tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout))
+                .max_file_size(512 * 1024)
+                .build(),
+        )
         .setup(|app| {
             let cfg_path = config::file_in(app.path().app_config_dir()?);
             let cfg = config::load(&cfg_path);

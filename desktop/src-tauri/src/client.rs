@@ -5,7 +5,7 @@ use crate::save_name;
 use reqwest::{Method, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -86,42 +86,18 @@ struct DexRaw {
     caught: String,
 }
 
-/// Resolve só IPv4. O CYD não tem IPv6, e o macOS espera ~5 s pela resposta
-/// AAAA do mDNS antes de desistir (por isso os scripts usam `curl -4`).
+/// Resolve com `locate` (mDNS, sistema, varredura). Só IPv4: o CYD não tem IPv6.
 struct Ipv4Resolver;
 
 impl reqwest::dns::Resolve for Ipv4Resolver {
     fn resolve(&self, name: reqwest::dns::Name) -> reqwest::dns::Resolving {
         let host = name.as_str().to_string();
         Box::pin(async move {
-            let addrs = tokio::task::spawn_blocking(move || resolve_v4(&host))
+            let ip = crate::locate::resolve(&host)
                 .await
-                .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?
                 .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)?;
-            Ok(Box::new(addrs.into_iter()) as reqwest::dns::Addrs)
+            Ok(Box::new(std::iter::once(SocketAddr::new(IpAddr::V4(ip), 80))) as reqwest::dns::Addrs)
         })
-    }
-}
-
-fn resolve_v4(host: &str) -> std::io::Result<Vec<SocketAddr>> {
-    if let Ok(ip) = host.parse::<Ipv4Addr>() {
-        return Ok(vec![SocketAddr::new(IpAddr::V4(ip), 80)]);
-    }
-    let hints = dns_lookup::AddrInfoHints {
-        address: dns_lookup::AddrFamily::Inet.into(),
-        socktype: dns_lookup::SockType::Stream.into(),
-        ..Default::default()
-    };
-    let list: Vec<SocketAddr> = dns_lookup::getaddrinfo(Some(host), None, Some(hints))
-        .map_err(std::io::Error::from)?
-        .filter_map(|a| a.ok())
-        .map(|a| a.sockaddr)
-        .filter(|a| a.is_ipv4())
-        .collect();
-    if list.is_empty() {
-        Err(std::io::Error::new(std::io::ErrorKind::NotFound, "sem IPv4"))
-    } else {
-        Ok(list)
     }
 }
 
@@ -139,7 +115,8 @@ impl Api {
     pub fn new() -> Self {
         let http = reqwest::Client::builder()
             .dns_resolver(Arc::new(Ipv4Resolver))
-            .connect_timeout(Duration::from_secs(3))
+            // Inclui achar o IP: mDNS (~2 s) e, se falhar, a varredura (~2 s).
+            .connect_timeout(Duration::from_secs(8))
             .timeout(Duration::from_secs(10))
             // Um cliente por vez no CYD: sem conexões paradas no pool.
             .pool_max_idle_per_host(0)
@@ -159,8 +136,24 @@ impl Api {
     }
 
     async fn send(&self, req: reqwest::RequestBuilder) -> Result<reqwest::Response> {
-        let resp = req.send().await.map_err(|_| ApiError::Offline)?;
+        let resp = req.send().await.map_err(|e| {
+            // A cadeia inteira: "error sending request" sozinho não diz se foi
+            // DNS, conexão recusada ou rede local bloqueada pelo macOS.
+            let mut msg = e.to_string();
+            let mut src = std::error::Error::source(&e);
+            while let Some(s) = src {
+                msg.push_str(" ← ");
+                msg.push_str(&s.to_string());
+                src = s.source();
+            }
+            log::warn!("{} {}: {msg}", e.url().map(|u| u.path()).unwrap_or("?"), if e.is_timeout() { "timeout" } else { "erro" });
+            if let Some(host) = e.url().and_then(|u| u.host_str()) {
+                crate::locate::forget(host);
+            }
+            ApiError::Offline
+        })?;
         let status = resp.status();
+        log::debug!("{} {}", resp.url().path(), status.as_u16());
         if status.is_success() {
             return Ok(resp);
         }
@@ -193,7 +186,7 @@ impl Api {
 
     /// `GET /` (sem chave).
     pub async fn info(&self, t: &Target<'_>) -> Result<Info> {
-        let req = self.http.get(format!("http://{}/", t.host)).timeout(Duration::from_secs(4));
+        let req = self.http.get(format!("http://{}/", t.host)).timeout(Duration::from_secs(10));
         let info: Info = self.json(req).await?;
         if info.name != "CYDex" {
             return Err(ApiError::Unsupported);

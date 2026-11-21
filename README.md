@@ -196,6 +196,8 @@ O [`desktop/`](desktop/) é um app de bandeja para macOS, Windows e Linux (Tauri
 - mostra o progresso da Dex por geração e os avisos abertos, e manda aviso de teste;
 - acha o CYD na rede sozinho. A chave é a de Wi-Fi › ⓘ (ou a do `~/.cydex`, que ele importa na primeira vez).
 
+No macOS, na primeira vez (e a cada versão nova), o sistema pergunta se o CYDex pode acessar a **rede local**: permita, senão ele não acha o CYD. Dá pra mudar depois em Ajustes › Privacidade e Segurança › Rede Local. Se algo não conectar, o log fica em `~/Library/Logs/dev.cydex.desktop/CYDex.log`.
+
 Os instaladores ficam nas [releases](../../releases) (`.dmg` pro macOS, `.msi`/`.exe` pro Windows, `.AppImage`/`.deb`/`.rpm` pro Linux). Eles não são assinados: no macOS, se aparecer "está danificado", rode `xattr -cr /Applications/CYDex.app`; no Windows, no SmartScreen, "Mais informações" › "Executar assim mesmo".
 
 Pra publicar uma versão nova (o workflow [`desktop-release.yml`](.github/workflows/desktop-release.yml) põe a versão da tag no app, compila nos três sistemas e publica a release quando todos terminam):

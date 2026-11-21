@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Junta com o Info.plist que o Tauri gera. Desde o macOS 15, app fora do
+     Terminal precisa da permissão de Rede Local pra falar com o CYDex (e pra
+     resolver cydex.local pelo mDNS). Sem estas chaves o sistema bloqueia sem
+     perguntar. -->
+<plist version="1.0">
+<dict>
+  <key>NSLocalNetworkUsageDescription</key>
+  <string>O CYDex Desktop conversa com o seu CYDex pela rede local: apaga e acende a tela, envia saves e mostra os avisos.</string>
+  <key>NSBonjourServices</key>
+  <array>
+    <string>_http._tcp</string>
+  </array>
+</dict>
+</plist>
