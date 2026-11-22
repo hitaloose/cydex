@@ -25,6 +25,40 @@ uint16_t showcase_next(int32_t current, uint16_t count, bool random, uint32_t rn
   return (uint16_t)((current + 1 + rnd % (count - 1)) % count);
 }
 
+namespace {
+bool bit(const uint8_t *bits, uint16_t n) { return bits[(n - 1) / 8] & (1u << ((n - 1) % 8)); }
+void set_bit(uint8_t *bits, uint16_t n, bool on) {
+  uint8_t m = 1u << ((n - 1) % 8);
+  if (on) bits[(n - 1) / 8] |= m;
+  else bits[(n - 1) / 8] &= ~m;
+}
+}  // namespace
+
+uint16_t showcase_pick(const uint16_t *list, uint16_t count, uint8_t *shown, uint16_t last,
+                       uint32_t rnd) {
+  if (count == 0) return 0;
+  uint16_t left = 0;
+  for (uint16_t i = 0; i < count; i++) left += !bit(shown, list[i]);
+  bool skip_last = false;
+  if (left == 0) {
+    for (uint16_t i = 0; i < count; i++) set_bit(shown, list[i], false);
+    left = count;
+    // Rodada nova: a última da anterior não abre esta (se houver outra).
+    for (uint16_t i = 0; i < count && count > 1; i++) {
+      if (list[i] == last) { skip_last = true; left--; break; }
+    }
+  }
+  uint16_t k = (uint16_t)(rnd % left);
+  for (uint16_t i = 0; i < count; i++) {
+    if (bit(shown, list[i]) || (skip_last && list[i] == last)) continue;
+    if (k-- == 0) {
+      set_bit(shown, list[i], true);
+      return i;
+    }
+  }
+  return 0;  // não chega aqui
+}
+
 void showcase_shift(uint32_t k, int8_t *dx, int8_t *dy) {
   static const int8_t kShifts[4][2] = {{0, 0}, {2, 1}, {1, 2}, {-1, 1}};
   *dx = kShifts[k % 4][0];

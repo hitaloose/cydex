@@ -132,10 +132,10 @@ Status de espécie: círculo cheio accent com check = **capturado**; contorno mu
 ## Modo vitrine
 
 - Sempre ligado, mostra uma espécie por vez.
-- Layout "carta" (cartão 314×234 em x=3, y=3, padding 3/5): cabeçalho de 22 px com o nome em 16 px numa linha (`ui_label_clamp`, "…") e os tipos abreviados à direita (`species_type_abbr`, 3 letras, `STR_TYPE_ABBR_*`); o nome fica com a largura que os chips deixam. Corpo: janela de 148×148 (borda 2 na cor do tipo 1 misturada 50% com o fundo, faint na não vista) e, à direita, medidas + status. Rodapé de 18 px + borda: "#nº · Geração X" (`STR_SC_FOOTER_FMT`) e a marca de status. Sem sombra no chão nem total.
+- Layout "carta" (cartão 314×234 em x=3, y=3, padding 3/5): cabeçalho de 22 px com o nome em 16 px numa linha (`ui_label_clamp`, "…") e os tipos abreviados à direita (`species_type_abbr`, 3 letras, `STR_TYPE_ABBR_*`); o nome fica com a largura que os chips deixam. Corpo: janela de 148×148 (borda 2 na cor do tipo 1 misturada 50% com o fundo; com 2 tipos, esquerda/baixo no tipo 1 e topo/direita no tipo 2, por um anel sobreposto com a borda inteira do tipo 2 recortada na diagonal por `lv_draw_mask_line` (borda parcial com raio não desenha a curva no LVGL 8.3); faint na não vista) e, à direita, medidas + status. Rodapé de 18 px + borda: "#nº · Geração X" (`STR_SC_FOOTER_FMT`) e a marca de status. Sem sombra no chão nem total.
 - Ajustes (salvos na NVS com `Preferences`, lidos ao entrar):
   - troca a cada: 30 s, 1, 2, 5 ou 15 min (padrão 1 min)
-  - ordem: sequencial ou aleatória
+  - ordem: sequencial ou aleatória. A aleatória não repete até mostrar todas ("saco": `showcase_pick`, bits por nº, só na RAM; a 1ª da rodada nova não é a última da anterior). Sortear com reposição repetia muito (paradoxo do aniversário).
   - mostrar: capturados, vistos ou todos (as 1025; `showcase_source`, chave `sc_src`, lê a antiga `sc_all` se faltar). Não vista mostra só nº, nome e sprite; tipos, medidas e status ficam "???", sombra neutra
   - brilho próprio da vitrine (padrão 35%) e outro depois do pôr do sol (padrão 15%; o normal à noite é 30%), em Ajustes › Tela e som
   - ao ligar: Menu ou Vitrine (padrão Menu), em Ajustes › Navegação

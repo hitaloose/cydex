@@ -403,6 +403,43 @@ void test_showcase_next() {
   TEST_ASSERT_EQUAL(0, showcase_next(-1, 0, false, 0));
 }
 
+void test_showcase_pick() {
+  // 161 espécies espalhadas: uma rodada mostra todas, cada uma uma vez.
+  uint16_t list[161];
+  for (uint16_t i = 0; i < 161; i++) list[i] = 1 + i * 6;
+  uint8_t shown[DEX_BITS_BYTES] = {};
+  uint32_t rnd = 12345;
+  auto next_rnd = [&]() { rnd = rnd * 1103515245u + 12345u; return rnd >> 8; };
+  uint16_t last = 0;
+  for (int round = 0; round < 3; round++) {
+    uint8_t seen_pos[161] = {};
+    for (int k = 0; k < 161; k++) {
+      uint16_t p = showcase_pick(list, 161, shown, last, next_rnd());
+      TEST_ASSERT_TRUE(p < 161);
+      if (k == 0) TEST_ASSERT_NOT_EQUAL(last, list[p]);  // rodada nova não repete a última
+      TEST_ASSERT_EQUAL(0, seen_pos[p]);
+      seen_pos[p] = 1;
+      last = list[p];
+    }
+  }
+  // Uma só: sempre ela.
+  uint8_t one[DEX_BITS_BYTES] = {};
+  uint16_t solo[1] = {25};
+  for (int k = 0; k < 3; k++) TEST_ASSERT_EQUAL(0, showcase_pick(solo, 1, one, 25, k));
+  // Lista muda no meio da rodada: a nova entra, as já mostradas continuam fora.
+  uint8_t bag[DEX_BITS_BYTES] = {};
+  uint16_t a[3] = {1, 2, 3};
+  uint16_t first = a[showcase_pick(a, 3, bag, 0, 0)];
+  uint16_t b[4] = {1, 2, 3, 4};
+  uint8_t got[5] = {};
+  got[first] = 1;
+  for (int k = 0; k < 3; k++) {
+    uint16_t n = b[showcase_pick(b, 4, bag, first, k * 7)];
+    TEST_ASSERT_EQUAL(0, got[n]);
+    got[n] = 1;
+  }
+}
+
 void test_showcase_shift_and_cycle() {
   int8_t dx, dy;
   showcase_shift(0, &dx, &dy);
@@ -748,6 +785,7 @@ int main() {
   RUN_TEST(test_catalog_text_and_pick_type);
   RUN_TEST(test_option_step);
   RUN_TEST(test_showcase_next);
+  RUN_TEST(test_showcase_pick);
   RUN_TEST(test_showcase_shift_and_cycle);
   RUN_TEST(test_showcase_crop);
   RUN_TEST(test_showcase_eligible);

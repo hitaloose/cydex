@@ -1,13 +1,15 @@
 // 14 Modo vitrine (canvas: Vitrine.dc.html, "carta"; CLAUDE.md "Modo vitrine").
 //   cartão 314x234 sem moldura (3 px da borda da tela, padding 3/5):
 //     cabeçalho 22: nome (16 px, 1 linha, "…") e tipos abreviados à direita
-//     corpo: janela 148x148 (borda 2 na cor do tipo 1 a 50% sobre o fundo) com o sprite 96 em 2x
+//     corpo: janela 148x148 (borda 2 na cor do tipo 1 a 50% sobre o fundo; com 2 tipos,
+//       esquerda/baixo no tipo 1 e topo/direita no tipo 2) com o sprite 96 em 2x
 //       cortado em 144 (72 px do original, centrados na parte opaca; mais alto
 //       que 72, ancora embaixo) · medidas + 6 status com rótulo, valor e barra
 //     rodapé 18: "#nº · Geração X" e o status de captura
 //   Mostrar "Todos" inclui as não vistas: só nº, nome e sprite; tipos, medidas
 //     e valores viram "???", borda neutra (canvas: tweak naoVisto)
 //   tocar em qualquer lugar volta pro Menu
+// Aleatória sem repetir até mostrar todas (showcase_pick, "saco" por número).
 // Só redesenha na troca (timer do intervalo dos Ajustes); entre trocas nada
 // muda. Cada troca desloca tudo 1–2 px (anti-retenção). Brilho próprio
 // enquanto a tela existe; a tela nunca apaga aqui (ui/power).
@@ -44,6 +46,7 @@ constexpr lv_coord_t kHeadH = 22, kFootH = 23;
 constexpr lv_coord_t kBodyY = kHeadH + kGap;
 constexpr lv_coord_t kBodyH = kCardH - 2 * kPadV - kHeadH - kFootH - 2 * kGap;  // 175
 constexpr lv_coord_t kWinW = 148, kWinBorder = 2;  // janela de 144 por dentro
+constexpr lv_coord_t kWinY = kBodyY + (kBodyH - kWinW) / 2;
 constexpr lv_coord_t kColX = kWinW + 8, kColW = kInnerW - kColX;  // 148
 constexpr lv_coord_t kStatH = 14, kStatGap = 3, kStatLabelW = 26, kStatValueW = 24;
 constexpr lv_coord_t kStatBarX = kStatLabelW + 4 + kStatValueW + 4, kStatBarH = 4;
@@ -53,9 +56,14 @@ constexpr uint16_t kChromaKey = 0x07E0;  // lv_color_hex(0x00FF00) em RGB565 (to
 uint16_t s_list[DEX_COUNT];  // espécies elegíveis (2 KB)
 uint16_t s_count;
 int32_t s_pos = -1;      // sobrevive entre sessões: a sequencial continua de onde parou
+// Aleatória: espécies que já saíram na rodada (saco, só RAM) e a última mostrada.
+// Também sobrevivem entre sessões; reiniciar o aparelho começa outra rodada.
+uint8_t s_shown[DEX_BITS_BYTES];
+uint16_t s_last_n;
 uint32_t s_shift_k;
 Sprite s_sprite;
 lv_obj_t *s_card;
+lv_obj_t *s_win;  // janela do sprite da troca atual (filha do s_card)
 lv_timer_t *s_timer;
 lv_obj_t *s_scr;
 
@@ -111,8 +119,9 @@ void build_window(uint16_t n, const SpeciesRecord *rec, bool unseen) {
   lv_color_t tint = unseen || !rec ? c(theme::FAINT)
                                    : lv_color_mix(c(species_type_color(rec->type1)), c(theme::BG), LV_OPA_50);
   lv_obj_t *win = ui_box(s_card);
+  s_win = win;
   lv_obj_set_size(win, kWinW, kWinW);
-  lv_obj_set_pos(win, 0, kBodyY + (kBodyH - kWinW) / 2);
+  lv_obj_set_pos(win, 0, kWinY);
   lv_obj_set_style_radius(win, 8, 0);
   lv_obj_set_style_clip_corner(win, true, 0);
   lv_obj_set_style_bg_color(win, c(theme::BG), 0);
@@ -135,6 +144,43 @@ void build_window(uint16_t n, const SpeciesRecord *rec, bool unseen) {
   lv_img_set_zoom(img, 512);
   // Posição relativa ao miolo da janela (dentro da borda).
   lv_obj_set_pos(img, -2 * ox, -2 * oy);
+}
+
+// Dois tipos: a janela fica com a borda inteira no tipo 1 e um anel por cima,
+// no mesmo lugar, com a borda inteira no tipo 2 recortada por uma máscara na
+// diagonal (canto inferior esquerdo → superior direito): só a metade de cima
+// fica, e as cores se encontram no meio das curvas superior-esquerda e
+// inferior-direita. (Borda parcial com raio no LVGL 8.3 não desenha a curva.)
+// Não clicável (ui_box): o toque vai pra tela.
+lv_draw_mask_line_param_t s_ring_mask;  // precisa viver enquanto o anel desenha
+int16_t s_ring_mask_id = LV_MASK_ID_INV;
+
+void on_ring_draw(lv_event_t *e) {
+  lv_event_code_t code = lv_event_get_code(e);
+  if (code == LV_EVENT_DRAW_MAIN_BEGIN) {
+    lv_area_t a;
+    lv_obj_get_coords(lv_event_get_target(e), &a);
+    lv_draw_mask_line_points_init(&s_ring_mask, a.x1, a.y2, a.x2, a.y1,
+                                  LV_DRAW_MASK_LINE_SIDE_TOP);
+    s_ring_mask_id = lv_draw_mask_add(&s_ring_mask, nullptr);
+  } else if (code == LV_EVENT_DRAW_MAIN_END && s_ring_mask_id != LV_MASK_ID_INV) {
+    lv_draw_mask_free_param(&s_ring_mask);
+    lv_draw_mask_remove_id(s_ring_mask_id);
+    s_ring_mask_id = LV_MASK_ID_INV;
+  }
+}
+
+void build_window_ring(const SpeciesRecord *rec, bool unseen) {
+  if (unseen || !rec || rec->type2 == SpeciesType::None) return;
+  lv_obj_t *ring = ui_box(s_card);
+  lv_obj_set_size(ring, kWinW, kWinW);
+  lv_obj_set_pos(ring, 0, kWinY);
+  lv_obj_set_style_radius(ring, 8, 0);
+  lv_obj_set_style_border_width(ring, kWinBorder, 0);
+  lv_obj_set_style_border_color(
+      ring, lv_color_mix(c(species_type_color(rec->type2)), c(theme::BG), LV_OPA_50), 0);
+  lv_obj_add_event_cb(ring, on_ring_draw, LV_EVENT_DRAW_MAIN_BEGIN, nullptr);
+  lv_obj_add_event_cb(ring, on_ring_draw, LV_EVENT_DRAW_MAIN_END, nullptr);
 }
 
 void build_stats(const SpeciesRecord *rec, bool unseen) {
@@ -220,6 +266,7 @@ void show(uint16_t n) {
   const SpeciesRecord *r = have ? &rec : nullptr;
   build_header(n, r, unseen);
   build_window(n, r, unseen);
+  build_window_ring(r, unseen);  // depois da janela: desenha por cima do sprite
   build_stats(r, unseen);
   build_footer(n, state);
 
@@ -228,9 +275,13 @@ void show(uint16_t n) {
 }
 
 void next() {
-  s_pos = showcase_next(s_pos < s_count ? s_pos : -1, s_count, settings().showcase_random,
-                        esp_random());
-  show(s_list[s_pos]);
+  if (settings().showcase_random) {
+    s_pos = showcase_pick(s_list, s_count, s_shown, s_last_n, esp_random());
+  } else {
+    s_pos = showcase_next(s_pos < s_count ? s_pos : -1, s_count, false, 0);
+  }
+  s_last_n = s_list[s_pos];
+  show(s_last_n);
 }
 
 void on_tick(lv_timer_t *) { next(); }

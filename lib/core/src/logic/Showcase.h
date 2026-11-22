@@ -28,6 +28,15 @@ bool showcase_eligible(ShowcaseSource src, bool seen, bool caught);
 // atual quando há mais de uma. `current` = -1 na primeira escolha.
 uint16_t showcase_next(int32_t current, uint16_t count, bool random, uint32_t rnd);
 
+// Aleatória sem repetição ("saco"): escolhe em `list` (números de espécie) uma
+// que ainda não saiu na rodada. `shown` são bits por nº − 1 (DEX_BITS_BYTES),
+// guardados por quem chama. Se todas já saíram, limpa os bits da lista e começa
+// outra rodada sem repetir `last` (nº da última mostrada; 0 = nenhuma). Marca a
+// escolhida e devolve a posição dela em `list`. Como os bits são por número, a
+// rodada sobrevive à lista ser refeita, e uma espécie nova entra como não saída.
+uint16_t showcase_pick(const uint16_t *list, uint16_t count, uint8_t *shown, uint16_t last,
+                       uint32_t rnd);
+
 // Deslocamento anti-retenção (1–2 px) da troca `k` (canvas: 4 posições).
 void showcase_shift(uint32_t k, int8_t *dx, int8_t *dy);
 
