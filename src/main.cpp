@@ -25,6 +25,24 @@ static const char *TAG = "main";
 // nessa cadeia, medir de novo com -fstack-usage em vez de estimar.
 size_t getArduinoLoopTaskStackSize(void) { return 32768; }
 
+// Comandos de linha pela serial. Hoje só "shot" (print da tela, ver
+// tools/cydex_screenshot.py).
+static void serial_cmd_tick() {
+  static char line[16];
+  static size_t len = 0;
+  while (Serial.available() > 0) {
+    char c = (char)Serial.read();
+    if (c == '\r') continue;
+    if (c != '\n') {
+      if (len < sizeof(line) - 1) line[len++] = c;
+      continue;
+    }
+    line[len] = '\0';
+    len = 0;
+    if (strcmp(line, "shot") == 0) display_capture_to_serial();
+  }
+}
+
 void setup() {
   Serial.begin(115200);
   delay(100);
@@ -85,5 +103,6 @@ void loop() {
   wifi_tick();    // Wi-Fi + servidor de avisos (cydex.local/notices)
   notice_tick();  // avisos: faixa ou balão na Vitrine
   power_tick();
+  serial_cmd_tick();
   delay(5);
 }

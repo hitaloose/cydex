@@ -19,6 +19,15 @@ static constexpr size_t kDispBufPx = BOARD_DISPLAY_WIDTH * DISP_BUF_LINES;
 static lv_color_t *disp_buf = nullptr;
 static lv_disp_drv_t disp_drv;
 
+// Print pela serial (display_capture_to_serial): enquanto ligado, cada faixa
+// que o flush_cb manda pro painel também sai na Serial.
+static bool s_capture = false;
+
+static void write_u16(uint16_t v) {
+  uint8_t b[2] = {(uint8_t)(v & 0xFF), (uint8_t)(v >> 8)};
+  Serial.write(b, 2);
+}
+
 void display_init() {
   tft.init();
   tft.setRotation(1);  // paisagem
@@ -46,6 +55,19 @@ static void flush_cb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *colo
   tft.setAddrWindow(area->x1, area->y1, w, h);
   tft.pushColors((uint16_t *)&color_p->full, w * h, true);
   tft.endWrite();
+  if (s_capture) {
+    // "CYSA" + x, y, w, h (u16 LE) + RGB565 nativo (LV_COLOR_16_SWAP 0 = LE)
+    // + soma dos pixels (u16): log de outra task no meio da faixa é detectado.
+    Serial.write((const uint8_t *)"CYSA", 4);
+    write_u16(area->x1);
+    write_u16(area->y1);
+    write_u16(w);
+    write_u16(h);
+    Serial.write((const uint8_t *)color_p, w * h * sizeof(lv_color_t));
+    uint16_t sum = 0;
+    for (uint32_t i = 0; i < w * h; i++) sum += color_p[i].full;
+    write_u16(sum);
+  }
   lv_disp_flush_ready(drv);
 }
 
@@ -60,4 +82,16 @@ void display_lvgl_init() {
   lv_disp_drv_register(&disp_drv);
   LOG_I(TAG, "LVGL: buffer parcial de %d linhas (%u bytes)", DISP_BUF_LINES,
         (unsigned)(kDispBufPx * sizeof(lv_color_t)));
+}
+
+void display_capture_to_serial() {
+  // Invalidar a tela inteira redesenha todas as camadas na área (inclusive a
+  // faixa de Aviso no lv_layer_top). ~150 KB a 115200 bps: uns 13 s parado.
+  Serial.flush();
+  s_capture = true;
+  lv_obj_invalidate(lv_scr_act());
+  lv_refr_now(nullptr);
+  s_capture = false;
+  Serial.write((const uint8_t *)"CYSE", 4);
+  Serial.flush();
 }
