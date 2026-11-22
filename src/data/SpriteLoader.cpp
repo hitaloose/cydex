@@ -14,6 +14,7 @@ static const char *path_for(SpriteSize s) {
   switch (s) {
     case SpriteSize::S96: return SPRITES_96_PATH;
     case SpriteSize::S64: return SPRITES_64_PATH;
+    case SpriteSize::S24: return SPRITES_24_PATH;
     default: return SPRITES_48_PATH;
   }
 }
@@ -22,12 +23,15 @@ static uint16_t px_for(SpriteSize s) {
   switch (s) {
     case SpriteSize::S96: return 96;
     case SpriteSize::S64: return 64;
+    case SpriteSize::S24: return 24;
     default: return 48;
   }
 }
 
-static constexpr size_t kSlotSize = 48 * 48 * 2;  // 4608 B
-static constexpr uint8_t kSlots = 10;
+// Vaga = um sprite 24 (1152 B): um 48 ocupa 4, um 64 ocupa 8, um 96 ocupa 16.
+// Área de 46 KB, como antes (10 × 48).
+static constexpr size_t kSlotSize = 24 * 24 * 2;  // 1152 B
+static constexpr uint8_t kSlots = 40;
 static uint8_t *s_arena = nullptr;
 static uint8_t s_used[kSlots];  // 0 = livre; senão, nº de vagas do bloco que começa aqui
 static bool s_busy[kSlots];
@@ -67,9 +71,18 @@ static bool arena_give(uint8_t *p) {
   return true;
 }
 
+void *sprite_arena_borrow(size_t bytes) {
+  void *p = arena_take(bytes);
+  return p ? p : malloc(bytes);
+}
+
+void sprite_arena_return(void *p) {
+  if (p && !arena_give((uint8_t *)p)) free(p);
+}
+
 // Cabeçalho validado uma vez por arquivo (cache por tamanho).
-static bool s_checked[3];
-static uint16_t s_count[3];
+static bool s_checked[4];
+static uint16_t s_count[4];
 
 bool sprite_load(uint16_t n, SpriteSize size, Sprite *out) {
   // Recarregar no mesmo Sprite libera o anterior (antes, o memset vazava o buffer).

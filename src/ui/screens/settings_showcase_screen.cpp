@@ -5,6 +5,7 @@
 #include <cstdio>
 
 #include "data/Settings.h"
+#include "data/SaveStore.h"
 #include "data/SpeciesRepo.h"
 #include "data/StatusStore.h"
 #include "i18n/i18n.h"
@@ -22,7 +23,7 @@ namespace {
 
 const StrId kOrders[2] = {STR_SC_ORDER_SEQ, STR_SC_ORDER_RAND};
 const StrId kSources[SHOWCASE_SOURCE_COUNT] = {STR_FILTER_CAUGHT, STR_SC_SHOW_SEEN,
-                                               STR_SC_SHOW_ALL};
+                                               STR_SC_SHOW_ALL, STR_SC_SHOW_TEAM};
 
 uint8_t s_page;
 Stepper s_interval;
@@ -34,6 +35,7 @@ uint16_t source_total(uint8_t src) {
   switch ((ShowcaseSource)src) {
     case ShowcaseSource::Seen: return ds.count_seen();
     case ShowcaseSource::All: return species_repo_count();
+    case ShowcaseSource::Team: return save_store_team_total();
     default: return ds.count_caught();
   }
 }

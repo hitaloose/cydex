@@ -25,6 +25,11 @@ enum class Screen : uint8_t {
   WifiPassword,
   Detail,
   Showcase,
+  Saves,       // 16 / 16a
+  Save,        // 17 / 17a / 17b
+  Member,      // 18
+  HallOfFame,  // 19
+  HallTeam,    // 19a
 };
 
 void nav_go(Screen s);

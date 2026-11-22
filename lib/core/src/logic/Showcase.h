@@ -18,9 +18,12 @@ constexpr uint8_t SCREEN_OFF_COUNT = 5;
 extern const uint16_t SCREEN_OFF_MIN[SCREEN_OFF_COUNT];
 
 // Mostrar: quais espécies entram na vitrine. O valor fica na NVS (sc_src).
-enum class ShowcaseSource : uint8_t { Caught = 0, Seen = 1, All = 2 };
-constexpr uint8_t SHOWCASE_SOURCE_COUNT = 3;
-// Espécie entra na vitrine? "Todos" inclui as não vistas.
+// Team = "Meu time": as criaturas do time de todos os saves (a lista vem dos
+// resumos do saves.cache, não da dex).
+enum class ShowcaseSource : uint8_t { Caught = 0, Seen = 1, All = 2, Team = 3 };
+constexpr uint8_t SHOWCASE_SOURCE_COUNT = 4;
+// Espécie entra na vitrine? "Todos" inclui as não vistas. Team: nunca (a
+// lista é outra).
 bool showcase_eligible(ShowcaseSource src, bool seen, bool caught);
 
 // Próxima posição na lista de espécies da vitrine (`count` itens).

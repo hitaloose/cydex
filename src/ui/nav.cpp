@@ -30,6 +30,11 @@ static lv_obj_t *build(Screen s) {
     case Screen::WifiPassword: return wifi_password_screen_create();
     case Screen::Detail: return detail_screen_create();
     case Screen::Showcase: return showcase_screen_create();
+    case Screen::Saves: return saves_screen_create();
+    case Screen::Save: return save_screen_create();
+    case Screen::Member: return member_screen_create();
+    case Screen::HallOfFame: return hall_screen_create();
+    case Screen::HallTeam: return hall_team_screen_create();
   }
   return menu_screen_create();  // inalcançável: o switch cobre todas as telas
 }

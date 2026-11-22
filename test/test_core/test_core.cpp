@@ -21,6 +21,8 @@
 #include "saves/gen3/Gen3Sections.h"
 #include "utils/ByteUtils.h"
 
+static uint8_t g_scratch[SAVE_SCRATCH_SIZE];
+
 void setUp() {}
 void tearDown() {}
 
@@ -547,7 +549,7 @@ static void cfg_dex(uint8_t *small) {
 
 void test_gen3_merge_dex() {
   auto data = build_gen3(cfg_dex);
-  SaveReader r{data.size(), mem_read, &data};
+  SaveReader r{data.size(), mem_read, &data, g_scratch};
   DexStatus st;
   st.clear();
   const char *fmt = save_merge_dex(r, st);
@@ -564,20 +566,20 @@ void test_gen3_merge_dex() {
 void test_gen3_tolerates_trailing_bytes_and_rejects_other_sizes() {
   auto data = build_gen3(cfg_dex);
   data.resize(GEN3_SAVE_FILE_SIZE + 16, 0);  // RTC no fim
-  SaveReader r{data.size(), mem_read, &data};
+  SaveReader r{data.size(), mem_read, &data, g_scratch};
   DexStatus st;
   st.clear();
   TEST_ASSERT_NOT_NULL(save_merge_dex(r, st));
 
   std::vector<uint8_t> small(32 * 1024, 0);  // tamanho de Gen1/2: ainda sem parser
-  SaveReader r2{small.size(), mem_read, &small};
+  SaveReader r2{small.size(), mem_read, &small, g_scratch};
   TEST_ASSERT_NULL(save_merge_dex(r2, st));
 }
 
 void test_gen3_corrupt_is_rejected() {
   auto data = build_gen3(cfg_dex);
   data[100] ^= 0xFF;  // estraga a seção física 0 (sem recalcular checksum)
-  SaveReader r{data.size(), mem_read, &data};
+  SaveReader r{data.size(), mem_read, &data, g_scratch};
   DexStatus st;
   st.clear();
   TEST_ASSERT_NULL(save_merge_dex(r, st));

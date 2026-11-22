@@ -108,6 +108,7 @@ bool showcase_eligible(ShowcaseSource src, bool seen, bool caught) {
     case ShowcaseSource::Caught: return caught;
     case ShowcaseSource::Seen: return seen || caught;
     case ShowcaseSource::All: return true;
+    case ShowcaseSource::Team: return false;
   }
   return caught;
 }

@@ -234,6 +234,92 @@ typedef enum {
   STR_STAT_SPD,
   STR_STAT_SPE,
 
+  /* Saves e Hall da Fama (16–19a), Ficha › Onde está, Vitrine › Meu time */
+  STR_TITLE_SAVES,
+  STR_TITLE_HOF,
+  STR_SAVES_COUNT_FMT,  /* %u = saves */
+  STR_SAVES_COUNT_ONE,  /* "1 save" */
+  STR_SAVES_SUB_FMT,  /* %s = tempo, %u/%u = dex */
+  STR_SAVES_UNKNOWN,
+  STR_SAVES_EMPTY_TITLE,
+  STR_SAVES_EMPTY_BODY,
+  STR_PLAYTIME_FMT,  /* %u = horas, %02u = minutos */
+  STR_SAVE_TAB_SUMMARY,
+  STR_SAVE_TAB_PARTY,
+  STR_SAVE_TAB_BOXES,
+  STR_SAVE_ID_FMT,  /* %05u = TID, %s = arquivo */
+  STR_SAVE_TIME,
+  STR_SAVE_BADGES,
+  STR_SAVE_DEX,
+  STR_SAVE_DEX_FMT,  /* %u = vistos, %u = total */
+  STR_SAVE_MONEY,
+  STR_SAVE_MONEY_FMT,  /* %s = valor com separador */
+  STR_SAVE_HOF_FMT,  /* %u = times */
+  STR_SAVE_HOF_ONE,  /* "1 time" */
+  STR_SAVE_SHINY,
+  STR_SAVE_EMPTY_SLOT,
+  STR_SAVE_LEVEL,
+  STR_BOX_TOTAL_FMT,  /* %u = criaturas nas caixas */
+  STR_BOX_COUNT_FMT,  /* %u/30, %u de %u caixas */
+  STR_BOX_EMPTY,
+  STR_BOX_OPEN,
+  STR_BOX_SUB_FMT,  /* %s = nível, %03u = nº */
+  STR_MEMBER_TAB_MOVES,
+  STR_MEMBER_PARTY_FMT,  /* %s = treinador, %u/%u = vaga */
+  STR_MEMBER_BOX_FMT,  /* %s = treinador, %s = caixa */
+  STR_MEMBER_HOF_FMT,  /* %s = treinador, %u = time */
+  STR_MEMBER_NATURE,
+  STR_MEMBER_ITEM,
+  STR_MEMBER_OT,
+  STR_MEMBER_OT_FMT,  /* %s = nome, %05u = TID */
+  STR_MEMBER_NONE,
+  STR_MEMBER_SHINY,
+  STR_MEMBER_EGG,
+  STR_MEMBER_PP,
+  STR_MEMBER_SPECIES_FMT,  /* %s = espécie, %03u = nº */
+  STR_HOF_ALL_FMT,  /* %u = times */
+  STR_HOF_ALL_SAVES,
+  STR_HOF_SAVE_FMT,  /* %s = treinador, %s = jogo */
+  STR_HOF_FIRST_FMT,  /* %s = tempo de jogo */
+  STR_HOF_MAX_LEVEL_FMT,  /* %u = nível */
+  STR_HOF_FIRST_LONG_FMT,  /* %s = tempo de jogo */
+  STR_HOF_LATEST,
+  STR_HOF_NTH_FMT,  /* %u = nº do time */
+  STR_HOF_OF_FMT,  /* %u de %u */
+  STR_HOF_TITLE_FMT,  /* %u = nº, %s = treinador */
+  STR_HOF_EMPTY,
+  STR_DETAIL_WHERE,
+  STR_WHERE_PARTY_FMT,  /* %s = treinador */
+  STR_WHERE_BOX_FMT,  /* %u = caixa, %s = treinador */
+  STR_SC_SHOW_TEAM,
+  STR_SC_TEAM_FOOTER_FMT,  /* %03u = nº, %s = espécie */
+  /* Naturezas, na ordem do jogo (0..24): STR_NATURE_HARDY + n */
+  STR_NATURE_HARDY,
+  STR_NATURE_LONELY,
+  STR_NATURE_BRAVE,
+  STR_NATURE_ADAMANT,
+  STR_NATURE_NAUGHTY,
+  STR_NATURE_BOLD,
+  STR_NATURE_DOCILE,
+  STR_NATURE_RELAXED,
+  STR_NATURE_IMPISH,
+  STR_NATURE_LAX,
+  STR_NATURE_TIMID,
+  STR_NATURE_HASTY,
+  STR_NATURE_SERIOUS,
+  STR_NATURE_JOLLY,
+  STR_NATURE_NAIVE,
+  STR_NATURE_MODEST,
+  STR_NATURE_MILD,
+  STR_NATURE_QUIET,
+  STR_NATURE_BASHFUL,
+  STR_NATURE_RASH,
+  STR_NATURE_CALM,
+  STR_NATURE_GENTLE,
+  STR_NATURE_SASSY,
+  STR_NATURE_CAREFUL,
+  STR_NATURE_QUIRKY,
+
   STR_COUNT
 } StrId;
 

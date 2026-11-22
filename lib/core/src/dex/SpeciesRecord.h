@@ -27,7 +27,9 @@
 //   30 u16[3]   número de cada estágio (0 = vazio)
 //   36 u8[2]    nível entre estágio i e i+1 (0 = sem nível: pedra, troca...)
 //   38 u8       flags (bit0 = tem sprite)
-//   39 25 B     reservado (0)
+//   39 u8       curva de crescimento (GrowthRate em logic/MonStats.h; 0 = não
+//               se sabe: SD gerado antes dela, sem mudar a versão)
+//   40 24 B     reservado (0)
 
 constexpr uint16_t SPECIES_FILE_VERSION = 1;
 constexpr size_t SPECIES_HEADER_SIZE = 16;
@@ -56,6 +58,7 @@ struct SpeciesRecord {
   uint16_t evo[SPECIES_EVO_MAX];
   uint8_t evo_level[SPECIES_EVO_MAX - 1];
   uint8_t flags;
+  uint8_t growth;  // GrowthRate (0 = desconhecida)
 
   uint16_t stat_total() const;
 };

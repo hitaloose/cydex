@@ -58,6 +58,7 @@ bool species_record_decode(const uint8_t *d, uint16_t number, SpeciesRecord *out
   out->evo_level[0] = d[36];
   out->evo_level[1] = d[37];
   out->flags = d[38];
+  out->growth = d[39] <= 6 ? d[39] : 0;
   return true;
 }
 
@@ -75,4 +76,5 @@ void species_record_encode(const SpeciesRecord &r, uint8_t *out) {
   out[36] = r.evo_level[0];
   out[37] = r.evo_level[1];
   out[38] = r.flags;
+  out[39] = r.growth;
 }

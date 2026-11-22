@@ -17,6 +17,9 @@ struct CatalogState {
   Screen view = Screen::List;   // visão a que "voltar" retorna
   uint16_t selected = 0;        // espécie aberta na Ficha
   DetailTab tab = DetailTab::Info;
+  // Pra onde o ‹ da Ficha volta quando ela foi aberta de fora do catálogo
+  // (Membro, Hall da Fama). Screen::Boot = voltar pra `view`, como sempre.
+  Screen back = Screen::Boot;
 };
 
 CatalogState &catalog_state();

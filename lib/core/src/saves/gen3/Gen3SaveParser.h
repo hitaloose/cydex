@@ -41,6 +41,15 @@ Gen3ParsedSave gen3_parse_save_streaming(Gen3SectionReader read_section, void *u
 bool gen3_read_small_block(Gen3SectionReader read_section, void *user_data, uint8_t *out_small,
                            Gen3GameVersion *out_version);
 
+// Só escolhe o slot ativo: `out_physical[id]` = seção física (0..27) da
+// seção lógica `id`. Quem lê aos pedaços (time, caixas) guarda isto e evita
+// reler os 112 KB do arquivo a cada acesso.
+bool gen3_find_active_slot(Gen3SectionReader read_section, void *user_data,
+                           int8_t out_physical[GEN3_SECTIONS_PER_SLOT]);
+
+// Versão pelo Small block (heurística do PKHeX, ver Gen3Sections.h).
+Gen3GameVersion gen3_detect_version(const uint8_t *small_block);
+
 // Conveniência sobre gen3_parse_save_streaming pra quando o save já está
 // inteiro em RAM (usado pelos testes nativos, que constroem saves sintéticos
 // em memória — no device real, prefira gen3_parse_save_streaming direto do

@@ -63,7 +63,9 @@ SlotScanResult scan_slot(Gen3SectionReader read_section, void *user_data, int sl
   return result;
 }
 
-Gen3GameVersion detect_version(const uint8_t *small_block) {
+}  // namespace
+
+Gen3GameVersion gen3_detect_version(const uint8_t *small_block) {
   uint32_t probe = read_u32_le(small_block + GEN3_SMALL_VERSION_PROBE_OFFSET);
   if (probe == 1) return Gen3GameVersion::FireRedLeafGreen;
   if (probe == 0) return Gen3GameVersion::RubySapphire;
@@ -73,6 +75,10 @@ Gen3GameVersion detect_version(const uint8_t *small_block) {
   }
   return Gen3GameVersion::RubySapphire;
 }
+
+namespace {
+
+Gen3GameVersion detect_version(const uint8_t *small_block) { return gen3_detect_version(small_block); }
 
 struct MemoryReaderContext {
   const uint8_t *data;
@@ -114,6 +120,14 @@ int choose_slot(Gen3SectionReader read_section, void *user_data, SlotScanResult 
 }
 
 }  // namespace
+
+bool gen3_find_active_slot(Gen3SectionReader read_section, void *user_data,
+                           int8_t out_physical[GEN3_SECTIONS_PER_SLOT]) {
+  SlotScanResult slot{};
+  if (choose_slot(read_section, user_data, &slot) < 0) return false;
+  for (int i = 0; i < GEN3_SECTIONS_PER_SLOT; i++) out_physical[i] = (int8_t)slot.section_physical_index[i];
+  return true;
+}
 
 bool gen3_read_small_block(Gen3SectionReader read_section, void *user_data, uint8_t *out_small,
                            Gen3GameVersion *out_version) {

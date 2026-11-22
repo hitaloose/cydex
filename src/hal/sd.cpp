@@ -13,7 +13,7 @@
 static const char *TAG = "sd";
 static bool s_present = false;
 static File s_read;
-static char s_read_path[96];  // /saves/<nome de até 64>
+static char s_read_path[160];  // /saves/<nome de até 128> (o laço do boot)
 static size_t s_read_size = 0;
 // Escrita por open()/write() POSIX, não por SD.open: o FIL já foi reservado na
 // montagem (max_files), e o File do Arduino + o FILE* do stdio pediam ~2 KB a

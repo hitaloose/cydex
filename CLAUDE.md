@@ -16,12 +16,12 @@ Nome: **CYDex** (CYD + dex, lê-se "sai-dex"). Não usar "Poké"/"Pokémon" no n
 |---|---|---|---|
 | 01 | `Main.dc.html` | Boot | Logo + barra de progresso "Lendo cartão SD… 642 / 1025 registros" |
 | 02 | `ErroSD.dc.html` | Sem cartão SD | Botão "Tentar de novo" (44 px). Pede FAT32 |
-| 03 | `Menu.dc.html` | Menu | Barra de capturados (312/1025), tile grande Lista + Buscar, Tipos, Progresso, Ajustes; botão "Vitrine" no topo. Sem indicador de SD (sem cartão o aparelho não passa do Boot) |
+| 03 | `Menu.dc.html` | Menu | Barra de capturados (312/1025), tile grande Lista + Saves, Hall da Fama (com a contagem no canto), Progresso, Ajustes; botão "Vitrine" no topo. Buscar e Tipos ficam só no cabeçalho da Lista/Grade. Sem indicador de SD (sem cartão o aparelho não passa do Boot) |
 | 04 | `Progresso.dc.html` | Progresso | Anel de % capturados + barras por geração (I–IX) |
 | 05 | `Ajustes.dc.html` | Ajustes (raiz) | Uma linha "›" por grupo, com resumo: Tela e som, Navegação, Modo vitrine, Sistema. Versão no cabeçalho |
 | 05a | `AjustesTela.dc.html` | Ajustes › Tela e som | Brilho e brilho à noite, brilho na vitrine e vitrine à noite (prévia enquanto arrasta), pôr do sol (só leitura: hora de hoje, "defina no app" ou "sem hora"), apagar tela, som ao tocar. 7 linhas = 2 páginas |
 | 05f | `AjustesNavegacao.dc.html` | Ajustes › Navegação | Catálogo em Lista/Grade, ao ligar Menu/Vitrine (segmentados na linha) |
-| 05b | `AjustesVitrine.dc.html` | Ajustes › Modo vitrine | Troca a cada, ordem, Mostrar › (Escolha: capturados/vistos/todos) + resumo do ciclo; ▶ no cabeçalho inicia a vitrine |
+| 05b | `AjustesVitrine.dc.html` | Ajustes › Modo vitrine | Troca a cada, ordem, Mostrar › (Escolha: capturados/vistos/todos/meu time) + resumo do ciclo; ▶ no cabeçalho inicia a vitrine |
 | 05c | `AjustesSistema.dc.html` | Ajustes › Sistema | Wi-Fi › (rede atual), Idioma › (Escolha), Cartão SD (registros, saves, "Recarregar", 52 px) |
 | 05g | `AjustesEscolha.dc.html` | Ajustes › Escolha | Genérica: uma linha de 34 px por opção, dica muted à direita, ✓ na atual; tocar grava e volta. Pagina com 6+ (tweak mostra Idioma com 2 páginas) |
 | 05d | `AjustesWiFi.dc.html` | Ajustes › Sistema › Wi-Fi | Interruptor + estado, 4 redes por página (barras de sinal, cadeado, ✓ e "Esquecer" na atual, que fica no topo), ↻ busca de novo, ⓘ abre 05d'. Rodapé de paginação sem "Ir para" |
@@ -33,13 +33,21 @@ Nome: **CYDex** (CYD + dex, lê-se "sai-dex"). Não usar "Poké"/"Pokémon" no n
 | 07 | `Grade.dc.html` | Grade | 5×2 (10 por página), sprite 48×48, rodapé de paginação |
 | 08 | `Busca.dc.html` | Busca | Campo no cabeçalho, sugestões (até 3), teclado QWERTY de 40 px + modo 123. Ignora maiúsculas, acentos e pontuação; nome só casa com espécie vista; "Ver" vira filtro |
 | 09 | `Tipos.dc.html` | Filtro por tipo | 18 tipos em grade 4×5, até 2 selecionados (o 3º troca o mais antigo), "Aplicar (n)" |
-| 10 | `Detalhe.dc.html` | Ficha: Info | Sprite 96×96, nome, tipos, altura, peso, geração, status de captura |
+| 10 | `Detalhe.dc.html` | Ficha: Info | Sprite 96×96, nome, tipos, altura, peso, geração, status de captura. Se algum save tiver a espécie, 4ª linha "Onde está" ("Time · Ana" / "Caixa 3 · Ana", "+n"; linhas de 22 px), que abre o save na aba certa |
 | 11 | `DetalheStatus.dc.html` | Ficha: Status | 6 barras (PS, Atq, Def, AtE, DfE, Vel) + total |
 | 12 | `DetalheEvol.dc.html` | Ficha: Evolução | Até 3 estágios 64×64 com nível entre eles |
 | 13 | `NaoVisto.dc.html` | Ficha: não visto | Tudo "???", abas Status/Evolução desativadas |
 | 14 | `Vitrine.dc.html` | Modo vitrine | Carta 314×234: nome (16 px, 1 linha, "…") + tipos abreviados; janela de 144 (borda na cor do tipo) com o sprite 2× cortado; medidas + 6 status com rótulo e valor; rodapé "#nº · Geração" + status. Toque sai pro Menu. Tweak `naoVisto`: só nº, nome e sprite, o resto "???" |
 | 15 | `Aviso.dc.html` | Aviso | Faixa de 56 px por cima de qualquer tela com o aviso mais importante: barra na cor do aviso, ícone, título, "subtítulo · mensagem" (2 linhas), "+n" dos outros. Toque fecha |
 | 15b | `VitrineAviso.dc.html` | Avisos na Vitrine | Até 3 balões compactos de 162×50 (ícone + título, subtítulo) empilhados à direita da janela do sprite, a partir do topo dela; o mais importante em cima e só ele com a ponta apontando pro sprite; toque num balão fecha só ele |
+| 16 | `Saves.dc.html` | Saves | Cards de 50 px (3 por página, rodapé só "pág X de Y"): faixa na cor do jogo, treinador + gênero, chip do jogo, "tempo · dex x/386", 8 insígnias. Não reconhecido: tracejado, sem toque |
+| 16a | `SavesVazio.dc.html` | Saves: nenhum | Cartucho tracejado + como mandar saves |
+| 17 | `SaveResumo.dc.html` | Save: Resumo | Abas Resumo/Time/Caixas (uma tela, painéis). Avatar com a inicial, ID · arquivo, tempo, insígnias, dex deste save (visto por baixo do capturado), dinheiro, Hall da Fama (abre o 19 filtrado), brilhantes. ‹ › trocam de save |
+| 17a | `SaveTime.dc.html` | Save: Time | 3×2 com sprite 48, apelido, Nv, ★ e barra de PS (verde > 50%, amarelo > 20%, accent); vaga vazia tracejada |
+| 17b | `SaveCaixas.dc.html` | Save: Caixas | 6×5 células de 28 com ícone 24 + painel do selecionado (‹ › da caixa, sprite 48, "Abrir ›"). No cabeçalho, "N nas caixas" no lugar de ‹ › |
+| 18 | `Membro.dc.html` | Membro | Abas Info (selo ★/Nv, espécie que abre a Ficha, tipos, natureza, item, treinador) / Status (valores reais; o que a natureza sobe em accent, o que desce em azul) / Golpes (tipo, nome, PP atual/máx) |
+| 19 | `HallDaFama.dc.html` | Hall da Fama | Times de todos os saves, cards de 50 px com "#n", treinador · jogo, "1ª vitória" no #1 ou "Nv máx", 6 ícones 24. Chip do filtro por save (Escolha 05g) |
+| 19a | `HallTime.dc.html` | Hall da Fama: time | "#n · Ana" + chip, faixa (mais recente / 1ª vitória com Xh / nº), 3×2 cards que abrem a Ficha; ‹ › pro time vizinho |
 
 ## Hardware
 
@@ -52,10 +60,12 @@ Nome: **CYDex** (CYD + dex, lê-se "sai-dex"). Não usar "Poké"/"Pokémon" no n
 - **Orçamento de memória com Wi-Fi** (medido na placa; o Wi-Fi conectado leva ~70 KB de heap e pica o resto):
   - O heap do ESP32 é em regiões separadas e o maior bloco contíguo no boot é de ~47 KB. Nada pode pedir mais que isso (o pool do LVGL no heap travava o `lv_init`).
   - O pool do LVGL é estático e tem 32 KB (pico medido ~10 KB, rodando todas as telas). O buffer do display (15 KB) e os nomes (16 KB) saem de **um** bloco de heap (`util/early_alloc`), porque pedidos separados ocupavam as regiões pequenas que sobram pros sprites.
-  - Os sprites saem de uma área fixa de 46 KB (`sprite_reserve()`, 10 vagas de 4,6 KB: 48 = 1 vaga, 64 = 2, 96 = 4). O pior caso de cada tela cabe exato (Grade 10×48, Ficha 96 + 3×64, Vitrine 96) e as telas nunca coexistem. Com o Wi-Fi ligado, sprites soltos no `malloc` falhavam (os 3 últimos da Grade, o 96 da Ficha). Sem vaga, cai no `malloc`.
+  - Os sprites saem de uma área fixa de 46 KB (`sprite_reserve()`, 40 vagas de 1152 B: 24 = 1 vaga, 48 = 4, 64 = 8, 96 = 16). O pior caso de cada tela cabe (Grade 10×48, Ficha 96 + 3×64, Vitrine 96, Caixas 30×24 + 48) e as telas nunca coexistem. Com o Wi-Fi ligado, sprites soltos no `malloc` falhavam (os 3 últimos da Grade, o 96 da Ficha). Sem vaga, cai no `malloc`.
+  - As telas de Saves e do Hall da Fama guardam time/caixa decodificados e a lista do Hall em vagas **emprestadas** dessa área (`sprite_arena_borrow`, via `saves_screen_mem_take`): o Save pede 6 vagas e as Caixas usam as outras 34. A RAM estática não comporta isso (o link estourava em 26 KB).
+  - O parser de save não tem buffer estático: usa o `SaveReader::scratch` de 4 KB, um só no firmware (`save_scratch()`), dividido por boot, API e telas (mesma task).
   - O SD é montado no setup **antes** do Wi-Fi, com `max_files` 3 (o FATFS pede ~4 KB por arquivo num bloco só). O `sd_init` não remonta se já estiver montado (Recarregar com o Wi-Fi ligado falhava).
   - Ordem do setup: `early_alloc_init` → display/LVGL → reservas (nomes, sprite 96) → SD → Wi-Fi. Mudou algo grande? Compilar com `-D LOG_LEVEL=2` e olhar o `[D][mem]` (a cada 10 s) e o `maior_bloco` depois de conectar (hoje ~57 KB livres além das reservas, pilha com ~29 KB livres).
-- Print da tela: comando `shot` na serial (`serial_cmd_tick` no `main.cpp`) → `display_capture_to_serial()` invalida a tela, `lv_refr_now` e o `flush_cb` também manda cada faixa (`"CYSA"` + x,y,w,h + RGB565 LE + soma u16, fim `"CYSE"`). `tools/cydex_screenshot.py` monta o PNG (2×) em `docs/img/` e repete se a soma falhar (log de outra task no meio). ~14 s a 115200. No macOS abrir a porta reinicia a placa mesmo com DTR/RTS em falso: manter o script aberto enquanto navega.
+- Print da tela: comando `shot` na serial (`serial_cmd_tick` no `main.cpp`) → `display_capture_to_serial()` invalida a tela, `lv_refr_now` e o `flush_cb` também manda cada faixa (`"CYSA"` + x,y,w,h + RGB565 LE + soma u16, fim `"CYSE"`). `tools/cydex_screenshot.py` monta o PNG (2×) em `docs/img/`. O CH340/macOS perde um byte de vez em quando: faixa com soma errada é descartada e só aquelas linhas são pedidas de novo (`shot <y0> <y1>`). ~14 s a 115200 (na Vitrine, uma troca entre o pedido e o reenvio deixa degrau). No macOS abrir a porta reinicia a placa mesmo com DTR/RTS em falso: manter o script aberto enquanto navega.
 - Stack: **PlatformIO + Arduino**, LVGL 8.3.11, TFT_eSPI 2.5.43. Comandos: `pio run -e cyd -t upload`, `pio device monitor`, `pio test -e native_test` (só `lib/core`, sem Arduino).
 - Processador e barramento são o gargalo: uma tela cheia (~150 KB em RGB565) leva ~30 ms só de SPI a 40 MHz, e o painel não tem sincronia (rasga em animação).
 - UI em **LVGL**.
@@ -153,15 +163,26 @@ Status de espécie: círculo cheio accent com check = **capturado**; contorno mu
 /cydex/species.bin          cabeçalho de 16 B ("CYDX", versão, count) + 1025 registros fixos de 64 B (seek em 16+(n-1)*64)
 /cydex/sprites_96.bin       todos os 96×96 num arquivo: cabeçalho "CYSP" + registros fixos (lv_img_header + RGB565, chroma key 0x00FF00)
 /cydex/sprites_64.bin       64×64 já reduzido no PC (Evolução)
-/cydex/sprites_48.bin       48×48 já reduzido no PC (Grade)
+/cydex/sprites_48.bin       48×48 já reduzido no PC (Grade, Time, Hall da Fama)
+/cydex/sprites_24.bin       24×24 (Caixas e lista do Hall da Fama)
+/cydex/moves.bin            golpes 1..354: nome, tipo, PP base ("CYNT", dex/NameTable.h)
+/cydex/items_g3.bin         nome do item pelo índice do Gen3 (game_indices da PokeAPI)
+/cydex/saves.cache          gerado pelo CYD junto do status.cache: um resumo fixo por save (SavesCache.h)
 /cydex/status.cache         gerado pelo CYD: assinatura dos saves + bits visto/capturado
 /saves/*.sav, *.srm         saves (hoje só Gen3; uma geração nova é um parser novo em lib/core/saves)
 ```
 
-- Os layouts ficam em `lib/core/src/dex/SpeciesRecord.h` e `SpriteFile.h`, que são a fonte da verdade e devem bater com o `tools/build_sd.py`.
+- Os layouts ficam em `lib/core/src/dex/SpeciesRecord.h`, `SpriteFile.h` e `NameTable.h`, que são a fonte da verdade e devem bater com o `tools/build_sd.py`. O byte 39 do `species.bin` é a curva de crescimento (0 = desconhecida, SD antigo: o nível de quem está na caixa vira "Nv ?").
 - **Nunca uma pasta com milhares de arquivos.** No FAT32 cada abertura varre a pasta inteira: com 1025 sprites soltos, cada um levava ~560 ms. Use arquivo único com registros fixos e `seek`. O `sd_open_read` reaproveita o arquivo se o caminho for o mesmo. SPI do SD a 20 MHz (o padrão do `SD.begin` é 4 MHz).
 - Os saves são lidos **só no boot** (ou em "Cartão SD › recarregar"). O resultado (`DexStatus`, 2×129 B) fica em RAM. Se a assinatura dos saves (nome, tamanho, data) não mudou, o boot usa o `status.cache` e pula o parse.
 - Na RAM ficam só os nomes (para Lista e Busca). O registro completo é lido do SD quando a ficha abre.
+
+### Saves e Hall da Fama
+
+- Modelo genérico em `lib/core/saves/` (`SaveMon`, `SaveSummary`/`SaveHead`, `SavesCache`); cada geração só preenche os mesmos tipos pelo `SaveFormat` (`open`, `summarize`, `read_party`, `read_box`, `read_hof_team`). Gen3 em `saves/gen3/` (`Gen3Pk3` decifra, `Gen3Species` índice interno → nacional, `Gen3Save` lê aos pedaços seguindo os IDs das seções; offsets conferidos no PKHeX). Nível e status de quem está na caixa: `logic/MonStats` com a base e a curva do `species.bin`.
+- O parse pesado (time, 14 caixas, Hall da Fama) roda só junto do da dex, quando a assinatura dos saves muda, e grava o `saves.cache` (registro fixo por save: resumo, time, hashes dos times do Hall, "onde está" com 1 byte por espécie até 386). Listas, Menu, "Onde está" e "Meu time" leem dele com seek (`data/SaveStore`); só o time, uma caixa e um time do Hall abrem o save.
+- O Gen3 não guarda data no Hall da Fama: só a ordem (0 = o mais antigo) e o tempo de jogo da 1ª vitória (game stat 1). O mesmo time em dois saves (mesmo PID + ID nas 6 vagas) entra uma vez.
+- Vitrine › Mostrar "Meu time" (`ShowcaseSource::Team`): o time de todos os saves; o saco sorteia por posição. Apelido + Nv no nome, "#nº · Espécie", o save e ★ no rodapé; status da espécie.
 
 ## Wi-Fi e avisos
 

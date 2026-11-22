@@ -46,6 +46,12 @@ const PATHS = {
   check_circle: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9"/>',
   alert: '<path d="M12 3.5L21.5 20h-19z"/><path d="M12 10v4"/><path d="M12 17h.01"/>',
   bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 21h4"/>',
+  cartridge: '<path d="M6 3h9l3 3v15H6z"/><path d="M9 3v4h6V3"/><rect x="9" y="11" width="6" height="6" rx="1"/>',
+  trophy: '<path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8 20h8M10 17h4"/>',
+  up: '<path d="M12 19V5M6 11l6-6 6 6"/>',
+  down: '<path d="M12 5v14M6 13l6 6 6-6"/>',
+  male: '<circle cx="10" cy="14" r="6"/><path d="M14.5 9.5L20 4M15 4h5v5"/>',
+  female: '<circle cx="12" cy="9" r="6"/><path d="M12 15v7M9 19h6"/>',
 };
 
 // [nome do ícone no código, traço, tamanho px, espessura do traço]
@@ -102,6 +108,18 @@ const ICONS = [
   ["info_16", "info", 16, 2.4],
   ["alert_16", "alert", 16, 2.4],
   ["bell_16", "bell", 16, 2.4],
+  // Saves e Hall da Fama (16–19a)
+  ["cartridge_20", "cartridge", 20, 2.2],  // tile do Menu
+  ["cartridge_28", "cartridge", 28, 2],    // 16a sem saves
+  ["trophy_20", "trophy", 20, 2.2],        // tile do Menu
+  ["trophy_14", "trophy", 14, 2.4],        // cards do Hall da Fama
+  ["forward_12", "forward", 12, 2.8],      // "Abrir ›", link da espécie no Membro
+  ["up_12", "up", 12, 2.8],                // natureza: status que sobe
+  ["down_12", "down", 12, 2.8],            // natureza: status que desce
+  ["male_12", "male", 12, 2.6],
+  ["female_12", "female", 12, 2.6],
+  ["male_13", "male", 13, 2.6],
+  ["female_13", "female", 13, 2.6],
 ];
 
 // Ícones com viewBox próprio (marcas de status, 14x14 no canvas).
@@ -124,6 +142,17 @@ const RAW = [
   // Ponta do balão da Vitrine (15b): contorno na cor do aviso + miolo surface por cima.
   ["tail_line_8", 8, '<path d="M8 0.5L0.8 7L8 13.5" fill="none" stroke="#fff" stroke-width="1"/>', 8, 14],
   ["tail_fill_8", 8, '<path d="M8.5 1.6L2.2 7L8.5 12.4z" fill="#fff"/>', 8, 14],
+  // ★ de brilhante (a fonte não tem o glifo).
+  ["star_13", 24, '<path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7-6.2-3.7-6.2 3.7 1.6-7L2 9.2l7.1-.6z" fill="#fff"/>', 13],
+  ["star_12", 24, '<path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7-6.2-3.7-6.2 3.7 1.6-7L2 9.2l7.1-.6z" fill="#fff"/>', 12],
+  ["star_9", 24, '<path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7-6.2-3.7-6.2 3.7 1.6-7L2 9.2l7.1-.6z" fill="#fff"/>', 9],
+  // Insígnia: losango (quadrado girado 45°), cheio ou só o contorno.
+  ["badge_10", 14, '<rect x="3" y="3" width="8" height="8" rx="1.5" transform="rotate(45 7 7)" fill="#fff"/>', 10],
+  ["badge_line_10", 14, '<rect x="3.5" y="3.5" width="7" height="7" rx="1.3" transform="rotate(45 7 7)" fill="none" stroke="#fff" stroke-width="1.6"/>', 10],
+  ["badge_7", 14, '<rect x="3" y="3" width="8" height="8" rx="1.5" transform="rotate(45 7 7)" fill="#fff"/>', 7],
+  ["badge_line_7", 14, '<rect x="3.5" y="3.5" width="7" height="7" rx="1.3" transform="rotate(45 7 7)" fill="none" stroke="#fff" stroke-width="1.8"/>', 7],
+  // Ícone 24 ausente (Caixas, Hall da Fama) e vaga vazia do Time.
+  ["dash_box_24", 24, '<rect x="0.5" y="0.5" width="23" height="23" rx="3" fill="none" stroke="#fff" stroke-width="1" stroke-dasharray="3 2"/>', 24],
   ["dash_box_48", 48, '<rect x="0.5" y="0.5" width="47" height="47" rx="4" fill="none" stroke="#fff" stroke-width="1" stroke-dasharray="3 2"/>', 48],
 ];
 

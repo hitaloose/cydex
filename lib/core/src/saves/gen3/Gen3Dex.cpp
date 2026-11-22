@@ -1,5 +1,6 @@
 #include "Gen3Dex.h"
 
+#include "Gen3Save.h"
 #include "Gen3SaveParser.h"
 #include "utils/ByteUtils.h"
 
@@ -22,9 +23,11 @@ bool get_bit(const uint8_t *small, int base, uint16_t n) {
 }
 
 bool merge_dex(const SaveReader &r, DexStatus &out) {
-  // static: tira ~4 KB da pilha (o PokEsp estourou a pilha nessa cadeia).
-  // O firmware é single-thread nesse caminho (boot / recarregar).
-  static uint8_t small[GEN3_SMALL_BLOCK_SIZE];
+  // No rascunho de quem chama: fora da pilha (o PokEsp estourou a pilha
+  // nessa cadeia) e sem um buffer estático só pra isto.
+  static_assert(GEN3_SMALL_BLOCK_SIZE <= SAVE_SCRATCH_SIZE, "Small block não cabe no rascunho");
+  if (!r.scratch) return false;
+  uint8_t *small = r.scratch;
   if (!gen3_read_small_block(read_section, (void *)&r, small, nullptr)) return false;
 
   // O bitfield do Gen3 já usa a ordem da dex nacional (bit = n-1).
@@ -37,4 +40,6 @@ bool merge_dex(const SaveReader &r, DexStatus &out) {
 
 }  // namespace
 
-const SaveFormat GEN3_SAVE_FORMAT = {"gen3", detect, merge_dex};
+const SaveFormat GEN3_SAVE_FORMAT = {
+    "gen3", detect, merge_dex, gen3_open, gen3_summarize, gen3_read_party, gen3_read_box, gen3_read_hof_team,
+};

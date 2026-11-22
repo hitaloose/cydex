@@ -8,6 +8,9 @@
 //     rodapé 18: "#nº · Geração X" e o status de captura
 //   Mostrar "Todos" inclui as não vistas: só nº, nome e sprite; tipos, medidas
 //     e valores viram "???", borda neutra (canvas: tweak naoVisto)
+//   Mostrar "Meu time": o time de todos os saves (resumos do saves.cache). O
+//     nome vira o apelido + "Nv", o rodapé "#nº · Espécie", o save e a ★;
+//     tipos, medidas e status continuam os da espécie
 //   tocar em qualquer lugar volta pro Menu
 // Aleatória sem repetir até mostrar todas (showcase_pick, "saco" por número).
 // Só redesenha na troca (timer do intervalo dos Ajustes); entre trocas nada
@@ -18,6 +21,7 @@
 #include <cstdio>
 #include <cstring>
 
+#include "data/SaveStore.h"
 #include "data/Settings.h"
 #include "data/SpeciesRepo.h"
 #include "data/SpriteLoader.h"
@@ -53,8 +57,14 @@ constexpr lv_coord_t kStatBarX = kStatLabelW + 4 + kStatValueW + 4, kStatBarH = 
 constexpr lv_coord_t kChipPad = 7, kChipGap = 4;
 constexpr uint16_t kChromaKey = 0x07E0;  // lv_color_hex(0x00FF00) em RGB565 (tools/build_sd.py)
 
-uint16_t s_list[DEX_COUNT];  // espécies elegíveis (2 KB)
+uint16_t s_list[DEX_COUNT];  // espécies elegíveis (2 KB); no "Meu time", posições 1..n
 uint16_t s_count;
+// "Meu time": posição (1..n) -> save << 8 | vaga. O saco sorteia por posição,
+// pra duas criaturas da mesma espécie não contarem como uma.
+constexpr uint16_t kTeamMax = 16 * SAVE_PARTY_MAX;
+uint16_t s_team[kTeamMax];
+bool s_team_mode;
+uint8_t s_last_src = 0xFF;  // trocou a fonte: o saco recomeça
 int32_t s_pos = -1;      // sobrevive entre sessões: a sequencial continua de onde parou
 // Aleatória: espécies que já saíram na rodada (saco, só RAM) e a última mostrada.
 // Também sobrevivem entre sessões; reiniciar o aparelho começa outra rodada.
@@ -74,6 +84,25 @@ void build_list() {
   const DexStatus &st = status_store_get();
   ShowcaseSource src = (ShowcaseSource)settings().showcase_source;
   s_count = 0;
+  if ((uint8_t)src != s_last_src) {
+    memset(s_shown, 0, sizeof(s_shown));
+    s_last_n = 0;
+    s_pos = -1;
+    s_last_src = (uint8_t)src;
+  }
+  s_team_mode = src == ShowcaseSource::Team;
+  if (s_team_mode) {
+    SaveHead h;
+    for (uint8_t i = 0; i < save_store_count(); i++) {
+      if (!save_store_head(i, &h)) continue;
+      for (uint8_t k = 0; k < h.party_count && s_count < kTeamMax; k++) {
+        s_team[s_count] = (uint16_t)(i << 8 | k);
+        s_list[s_count] = s_count + 1;
+        s_count++;
+      }
+    }
+    return;
+  }
   for (uint16_t n = 1; n <= species_repo_count(); n++) {
     if (showcase_eligible(src, st.is_seen(n), st.is_caught(n))) s_list[s_count++] = n;
   }
@@ -82,6 +111,10 @@ void build_list() {
 lv_coord_t chip_w(const char *text) {
   return lv_txt_get_width(text, strlen(text), &font_12_700, 0, LV_TEXT_FLAG_NONE) + 2 * kChipPad;
 }
+
+// Criatura do "Meu time" sendo mostrada (vazio fora dele).
+SavePartyBrief s_brief;
+SaveHead s_brief_save;
 
 // Cabeçalho: tipos à direita, o nome fica com o que sobra.
 void build_header(uint16_t n, const SpeciesRecord *rec, bool unseen) {
@@ -106,8 +139,24 @@ void build_header(uint16_t n, const SpeciesRecord *rec, bool unseen) {
     }
   }
 
+  lv_coord_t free_w = kInnerW - used - (used ? 8 : 0);
+  if (s_team_mode) {
+    // Apelido + "Nv 58" logo depois (o nível nunca é cortado).
+    lv_obj_t *row = ui_box(s_card);
+    lv_obj_set_size(row, free_w, kHeadH);
+    lv_obj_set_style_pad_column(row, 8, 0);
+    lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    char lv[12];
+    snprintf(lv, sizeof(lv), tr(STR_EVO_LEVEL_FMT), s_brief.level);
+    lv_coord_t lv_w = lv_txt_get_width(lv, strlen(lv), &font_12_600, 0, LV_TEXT_FLAG_NONE);
+    lv_obj_t *nl = ui_label(row, &font_16_700, theme::TEXT, s_brief.nick);
+    ui_label_clamp(nl, free_w - lv_w - 8, 1);
+    ui_label(row, &font_12_600, theme::MUTED, lv);
+    return;
+  }
   lv_obj_t *nl = ui_label(s_card, &font_16_700, theme::TEXT, species_repo_name(n));
-  ui_label_clamp(nl, kInnerW - used - (used ? 8 : 0), 1);
+  ui_label_clamp(nl, free_w, 1);
   lv_obj_align(nl, LV_ALIGN_TOP_LEFT, 0,
                (kHeadH - lv_font_get_line_height(&font_16_700)) / 2);
 }
@@ -238,6 +287,15 @@ void build_footer(uint16_t n, SpeciesState state) {
   lv_obj_set_flex_align(foot, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
   lv_obj_t *id = ui_label(foot, &font_12_600, theme::MUTED, "");
+  if (s_team_mode) {
+    lv_label_set_text_fmt(id, tr(STR_SC_TEAM_FOOTER_FMT), n, species_repo_name(n));
+    lv_obj_set_flex_grow(id, 1);
+    char who[48];
+    snprintf(who, sizeof(who), tr(STR_HOF_SAVE_FMT), s_brief_save.name, save_game_name(s_brief_save.game));
+    ui_label(foot, &font_12_600, theme::MUTED, who);
+    if (s_brief.flags & SAVE_MON_SHINY) ui_icon(foot, &icon_star_12, theme::NOTICE_IDLE);
+    return;
+  }
   lv_label_set_text_fmt(id, tr(STR_SC_FOOTER_FMT), n, dex_generation_roman(dex_generation_of(n)));
   lv_obj_set_flex_grow(id, 1);
 
@@ -251,6 +309,15 @@ void build_footer(uint16_t n, SpeciesState state) {
 
 void show(uint16_t n) {
   uint32_t t0 = lv_tick_get();
+  if (s_team_mode) {
+    // n = posição no time: troca pelo nº da espécie daquela vaga.
+    uint16_t ref = s_team[n - 1];
+    memset(&s_brief, 0, sizeof(s_brief));
+    if (!save_store_party_brief((uint8_t)(ref >> 8), (uint8_t)ref, &s_brief) ||
+        !save_store_head((uint8_t)(ref >> 8), &s_brief_save) || s_brief.species == 0)
+      return;
+    n = s_brief.species;
+  }
   // O cartão sai antes do sprite: o lv_img ainda aponta pro buffer.
   lv_obj_clean(s_card);
   sprite_free(&s_sprite);
@@ -258,6 +325,7 @@ void show(uint16_t n) {
   SpeciesRecord rec;
   bool have = species_repo_get(n, &rec);
   SpeciesState state = status_store_get().state(n);
+  if (s_team_mode) state = SpeciesState::Caught;  // está no time: os dados aparecem
   bool unseen = state == SpeciesState::Unknown;  // só com Mostrar "Todos"
   int8_t dx, dy;
   showcase_shift(s_shift_k++, &dx, &dy);

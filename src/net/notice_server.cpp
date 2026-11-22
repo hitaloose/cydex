@@ -9,6 +9,7 @@
 #include <ctime>
 
 #include "data/Settings.h"
+#include "data/SaveScratch.h"
 #include "data/StatusStore.h"
 #include "data/paths.h"
 #include "hal/sd.h"
@@ -386,7 +387,7 @@ static void list_saves() {
     const char *fmt = nullptr;
     size_t size = 0;
     if (sd_open_read(path, &size)) {
-      SaveReader r{size, sd_reader, nullptr};
+      SaveReader r{size, sd_reader, nullptr, save_scratch()};
       scratch.clear();
       fmt = save_merge_dex(r, scratch);
       sd_close_read();

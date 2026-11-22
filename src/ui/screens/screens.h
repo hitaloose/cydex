@@ -51,6 +51,15 @@ lv_obj_t *showcase_screen_create();
 // (apagar = tirar os balões); nullptr se a Vitrine não estiver montada.
 struct Notice;
 lv_obj_t *showcase_show_notices(const Notice *items, uint8_t count, lv_event_cb_t on_tap);
+// Saves e Hall da Fama (16–19a). Estado entre elas: ui/saves_ui.h.
+lv_obj_t *saves_screen_create();
+lv_obj_t *save_screen_create();
+lv_obj_t *member_screen_create();
+lv_obj_t *hall_screen_create();
+lv_obj_t *hall_team_screen_create();
+// Lista do 19 (com o filtro de saves_state()); o 19a anda nela com ‹ ›.
+struct HofRef;
+uint16_t hall_list_build(HofRef *out, uint16_t max);
 lv_obj_t *settings_wifi_screen_create();
 lv_obj_t *wifi_info_screen_create();
 lv_obj_t *wifi_password_screen_create();

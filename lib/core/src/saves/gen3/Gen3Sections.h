@@ -60,3 +60,42 @@ struct Gen3BadgeLocation {
 constexpr Gen3BadgeLocation GEN3_BADGE_LOCATION_RS = {0x1220, 0x807};
 constexpr Gen3BadgeLocation GEN3_BADGE_LOCATION_EMERALD = {0x1270, 0x867};
 constexpr Gen3BadgeLocation GEN3_BADGE_LOCATION_FRLG = {0x0EE0, 0x820};
+
+// ---- Campos usados pelos Saves (PKHeX: Saves/Blocks/Gen3/SaveBlock3*) ----
+constexpr int GEN3_SMALL_GENDER_OFFSET = 0x08;  // u8: 0 masculino, 1 feminino
+// Chave que cifra dinheiro e game stats (XOR u32). Ruby/Sapphire não têm (0).
+constexpr int GEN3_SMALL_SECURITY_KEY_EMERALD = 0x0AC;
+constexpr int GEN3_SMALL_SECURITY_KEY_FRLG = 0xF20;
+
+// Offsets dentro do Large block remontado (seções 1..4).
+struct Gen3LargeLayout {
+  int party_count;  // u8
+  int party;        // 6 × 100 B
+  int money;        // u32 (XOR chave)
+  int records;      // game stats: u32 cada (XOR chave)
+};
+constexpr Gen3LargeLayout GEN3_LARGE_RS = {0x234, 0x238, 0x490, 0x1540};
+constexpr Gen3LargeLayout GEN3_LARGE_EMERALD = {0x234, 0x238, 0x490, 0x159C};
+constexpr Gen3LargeLayout GEN3_LARGE_FRLG = {0x034, 0x038, 0x290, 0x1200};
+// Game stat 1 = tempo de jogo na 1ª vitória (h << 16 | min << 8 | s).
+constexpr int GEN3_RECORD_FIRST_HOF_PLAY_TIME = 1;
+
+// Storage (PC): seções 5..13 remontadas (9 × 0xF80 = 0x83D0 B).
+constexpr int GEN3_STORAGE_FIRST_SECTION_ID = 5;
+constexpr int GEN3_BOX_COUNT = 14;
+constexpr int GEN3_BOX_SLOTS = 30;
+constexpr int GEN3_STORAGE_BOXES_OFFSET = 0x04;  // 14 × 30 × 80 B
+constexpr int GEN3_STORAGE_BOX_NAMES_OFFSET = 0x8344;
+constexpr int GEN3_BOX_NAME_LENGTH = 9;  // 8 + terminador
+
+// Hall da Fama: fora dos slots, nos setores físicos 28 e 29. Cada um usa os
+// primeiros 0xF80 B; juntos guardam 50 times de 6 × 20 B (o 34º atravessa
+// a divisa). O checksum dos setores extras fica em 0xFF4 (não 0xFF6), e um
+// setor todo 0x00 ou 0xFF conta como vazio. O jogo grava cada time novo na
+// 1ª vaga livre (com 50, desloca tudo): o índice 0 é o mais antigo.
+constexpr long GEN3_HOF_SECTOR_A = 0x1C000;
+constexpr long GEN3_HOF_SECTOR_B = 0x1D000;
+constexpr int GEN3_EXTRA_CHECKSUM_OFFSET = 0xFF4;
+constexpr int GEN3_HOF_TEAMS = 50;
+constexpr int GEN3_HOF_MON_SIZE = 0x14;  // u32 ID, u32 PID, u16 espécie:9|nível:7, apelido 10 B
+constexpr int GEN3_HOF_TEAM_SIZE = 6 * GEN3_HOF_MON_SIZE;

@@ -18,7 +18,8 @@
 // Subir STATUS_CACHE_VERSION quando um parser novo (outra geração) entrar,
 // pra invalidar caches antigos que ignoravam aquele formato.
 
-constexpr uint16_t STATUS_CACHE_VERSION = 1;
+// 2: o saves.cache passou a ser gravado junto (o 1 não tinha).
+constexpr uint16_t STATUS_CACHE_VERSION = 2;
 constexpr size_t STATUS_CACHE_SIZE = 12 + 2 * DEX_BITS_BYTES;
 
 // Acumula a assinatura arquivo a arquivo. Não depende da ordem em que o SD

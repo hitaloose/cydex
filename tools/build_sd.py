@@ -6,11 +6,15 @@ Saída (copiar o conteúdo de --out pra raiz de um cartão FAT32):
     cydex/species.bin            cabeçalho + 1025 registros de 64 B
     cydex/sprites_96.bin         todos os 96x96 RGB565 chroma key (Ficha, Vitrine 2x)
     cydex/sprites_64.bin         64x64 (Evolução)
-    cydex/sprites_48.bin         48x48 (Grade)
+    cydex/sprites_48.bin         48x48 (Grade, Time, Hall da Fama)
+    cydex/sprites_24.bin         24x24 (Caixas e lista do Hall da Fama)
+    cydex/moves.bin              golpes 1..354 (nome, tipo, PP base)
+    cydex/items_g3.bin           nomes dos itens pelo índice do Gen3
     saves/                       pasta vazia pros .sav/.srm
 
-Os layouts binários espelham lib/core/src/dex/SpeciesRecord.h e
-lib/core/src/dex/SpriteFile.h. Se um mudar, o outro muda junto.
+Os layouts binários espelham lib/core/src/dex/SpeciesRecord.h,
+lib/core/src/dex/SpriteFile.h e lib/core/src/dex/NameTable.h. Se um mudar, o
+outro muda junto.
 
 Sprites ficam num arquivo por tamanho, com registros de tamanho fixo. Antes
 eram 1025 arquivos por pasta, mas no FAT32 cada abertura varre a pasta toda
@@ -73,7 +77,17 @@ ROMAN = {"i": 1, "ii": 2, "iii": 3, "iv": 4, "v": 5, "vi": 6, "vii": 7, "viii": 
 LV_IMG_CF_TRUE_COLOR_CHROMA_KEYED = 6
 CHROMA_KEY_565 = 0x07E0  # lv_color_hex(0x00FF00) == LV_COLOR_CHROMA_KEY no lv_conf.h
 CHROMA_SAFE_565 = 0x07C0  # pixel opaco que colidiria com a chave
-SPRITE_SIZES = (96, 64, 48)
+SPRITE_SIZES = (96, 64, 48, 24)
+
+# ---- Tabelas de nomes (espelho de NameTable.h) ----
+NAME_TABLE_VERSION = 1
+NAME_TABLE_HEADER_SIZE = 16
+TABLE_NAME_SIZE = 24
+MOVE_RECORD_SIZE = 28
+ITEM_RECORD_SIZE = 24
+GEN3_MOVE_COUNT = 354  # Pound..Psycho Boost (ids iguais aos da PokeAPI)
+GROWTH_RATES = {"slow": 1, "medium": 2, "fast": 3, "medium-slow": 4, "slow-then-very-fast": 5,
+                "fast-then-very-slow": 6}
 SPRITE_FILE_VERSION = 1
 SPRITE_HEADER_SIZE = 16
 
@@ -134,17 +148,21 @@ def fetch(url: str, binary: bool = False):
 NAMES_LANG = "en"
 
 
-def species_name(species: dict) -> str:
+def localized_name(entry: dict, size: int = NAME_SIZE) -> str:
     """Nome no idioma de --names-lang, com o inglês como reserva."""
-    by_lang = {e["language"]["name"]: e["name"] for e in species["names"]}
-    name = by_lang.get(NAMES_LANG) or by_lang.get("en") or species["name"].title()
+    by_lang = {e["language"]["name"]: e["name"] for e in entry["names"]}
+    name = by_lang.get(NAMES_LANG) or by_lang.get("en") or entry["name"].replace("-", " ").title()
     for bad, good in NAME_FIXES.items():
         name = name.replace(bad, good)
     if any(ord(c) > 0xFF for c in name):
         raise ValueError(f"nome fora do Latin-1: {name!r}")
-    if len(name.encode("utf-8")) > NAME_SIZE - 1:
-        raise ValueError(f"nome longo demais pra {NAME_SIZE - 1} bytes: {name!r}")
+    if len(name.encode("utf-8")) > size - 1:
+        raise ValueError(f"nome longo demais pra {size - 1} bytes: {name!r}")
     return name
+
+
+def species_name(species: dict) -> str:
+    return localized_name(species)
 
 
 def id_from_url(url: str) -> int:
@@ -200,6 +218,7 @@ def load_species(n: int) -> dict:
         "weight_hg": pokemon["weight"],
         "generation": gen,
         "stats": [min(stats[s], 255) for s in STATS],
+        "growth": GROWTH_RATES.get(species["growth_rate"]["name"], 0),
         "evo": main_evolution_line(chain, n),
         "sprite": fetch(sprite_url, binary=True) if sprite_url else None,
     }
@@ -228,8 +247,8 @@ def encode_record(sp: dict) -> bytes:
         *numbers,
         bytes(levels),
         FLAG_HAS_SPRITE if sp["sprite"] else 0,
-    )
-    assert len(rec) == 39, len(rec)
+    ) + bytes([sp["growth"]])
+    assert len(rec) == 40, len(rec)
     return rec + bytes(RECORD_SIZE - len(rec))
 
 
@@ -262,6 +281,44 @@ def encode_sprite(img: Image.Image, size: int) -> bytes:
                 px = CHROMA_SAFE_565
         out += struct.pack("<H", px)
     return bytes(out)
+
+
+def encode_name_table_header(count: int, record_size: int) -> bytes:
+    return struct.pack("<4sHHH6x", b"CYNT", NAME_TABLE_VERSION, count, record_size)
+
+
+def load_move(n: int) -> bytes:
+    move = fetch(f"{API}/move/{n}")
+    name = localized_name(move, TABLE_NAME_SIZE)
+    # Golpes de tipo "shadow"/"unknown" não existem no Gen3; caem em Normal.
+    t = move["type"]["name"]
+    type_id = TYPES.index(t) if t in TYPES else 0
+    rec = struct.pack("<24sBB2x", name.encode("utf-8"), type_id, move["pp"] or 0)
+    assert len(rec) == MOVE_RECORD_SIZE
+    return rec
+
+
+def gen3_item_names(workers: int) -> dict[int, str]:
+    """{índice do item no Gen3: nome}, pelos game_indices da PokeAPI."""
+    listing = fetch(f"{API}/item?limit=3000")
+    urls = [e["url"].rstrip("/") for e in listing["results"]]
+
+    def one(url):
+        item = fetch(url)
+        idx = [g["game_index"] for g in item["game_indices"] if g["generation"]["name"] == "generation-iii"]
+        if not idx:
+            return None
+        try:
+            return idx[0], localized_name(item, TABLE_NAME_SIZE)
+        except ValueError:
+            return idx[0], item["name"].replace("-", " ").title()[:TABLE_NAME_SIZE - 1]
+
+    out: dict[int, str] = {}
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for got in pool.map(one, urls):
+            if got:
+                out.setdefault(got[0], got[1])
+    return out
 
 
 # ---------------------------------------------------------------- main
@@ -322,6 +379,26 @@ def main() -> int:
                 f.write(data)
         expected = SPRITE_HEADER_SIZE + count * (4 + size * size * 2)
         assert path.stat().st_size == expected, (path, path.stat().st_size, expected)
+
+    print(f"baixando {GEN3_MOVE_COUNT} golpes...")
+    with ThreadPoolExecutor(max_workers=args.workers) as pool:
+        moves = list(pool.map(load_move, range(1, GEN3_MOVE_COUNT + 1)))
+    with open(root / "moves.bin", "wb") as f:
+        f.write(encode_name_table_header(GEN3_MOVE_COUNT, MOVE_RECORD_SIZE))
+        for rec in moves:
+            f.write(rec)
+    assert moves[0][:5] == b"Pound" or NAMES_LANG != "en", moves[0]
+
+    print("baixando os itens (índice do Gen3)...")
+    items = gen3_item_names(args.workers)
+    item_count = max(items) if items else 0
+    with open(root / "items_g3.bin", "wb") as f:
+        f.write(encode_name_table_header(item_count, ITEM_RECORD_SIZE))
+        for i in range(1, item_count + 1):
+            f.write(struct.pack("<24s", items.get(i, "").encode("utf-8")))
+    if NAMES_LANG == "en":
+        assert items.get(200) == "Leftovers", items.get(200)
+    print(f"ok: moves.bin ({GEN3_MOVE_COUNT}), items_g3.bin ({len(items)} de 1..{item_count})")
 
     size = (root / "species.bin").stat().st_size
     assert size == HEADER_SIZE + count * RECORD_SIZE, size

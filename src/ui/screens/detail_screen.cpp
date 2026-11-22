@@ -9,6 +9,7 @@
 // Tudo é liberado no LV_EVENT_DELETE.
 #include <cstdio>
 
+#include "data/SaveStore.h"
 #include "data/SpeciesRepo.h"
 #include "data/SpriteLoader.h"
 #include "data/StatusStore.h"
@@ -18,6 +19,7 @@
 #include "screens.h"
 #include "ui/catalog.h"
 #include "ui/icons/icons.h"
+#include "ui/saves_ui.h"
 #include "ui/theme.h"
 #include "ui/widgets.h"
 #include "util/log.h"
@@ -68,6 +70,12 @@ void open_species(uint16_t n, DetailTab tab) {
 
 void on_back(lv_event_t *) {
   CatalogState &cs = catalog_state();
+  if (cs.back != Screen::Boot) {
+    Screen to = cs.back;
+    cs.back = Screen::Boot;
+    nav_go(to);
+    return;
+  }
   cs.anchor = s_n;  // volta na página da espécie que estava aberta
   nav_go(cs.view);
 }
@@ -154,19 +162,74 @@ lv_obj_t *panel(lv_obj_t *scr) {
 
 // ---------- Info ----------
 
-void info_row(lv_obj_t *dl, uint8_t i, StrId label, const char *value, bool muted_value,
-              bool divider) {
+// Linhas de 26 px; com a 4ª ("Onde está") ficam com 22 pra caber (canvas).
+lv_coord_t s_row_h = 26;
+
+lv_obj_t *info_row(lv_obj_t *dl, uint8_t i, StrId label, const char *value, bool muted_value,
+                   bool divider) {
   lv_obj_t *row = ui_box(dl);
-  lv_obj_set_pos(row, 0, i * 26);
-  lv_obj_set_size(row, LV_PCT(100), 26);
+  lv_obj_set_pos(row, 0, i * s_row_h);
+  lv_obj_set_size(row, LV_PCT(100), s_row_h);
   if (divider) {
     lv_obj_set_style_border_side(row, LV_BORDER_SIDE_BOTTOM, 0);
     lv_obj_set_style_border_width(row, 1, 0);
     lv_obj_set_style_border_color(row, c(theme::ROW_DIVIDER), 0);
   }
   lv_obj_align(ui_label(row, &font_12_500, theme::MUTED, tr(label)), LV_ALIGN_LEFT_MID, 0, 0);
-  lv_obj_align(ui_label(row, &font_14_600, muted_value ? theme::MUTED : theme::TEXT, value),
-               LV_ALIGN_RIGHT_MID, 0, 0);
+  if (value) {
+    lv_obj_align(ui_label(row, &font_14_600, muted_value ? theme::MUTED : theme::TEXT, value),
+                 LV_ALIGN_RIGHT_MID, 0, 0);
+  }
+  return row;
+}
+
+// ---------- Onde está (saves) ----------
+
+SaveWhere s_where[16];
+uint8_t s_where_n;
+
+void on_where(lv_event_t *) {
+  if (!s_where_n) return;
+  SavesState &st = saves_state();
+  const SaveWhere &w = s_where[0];
+  st.save = w.save;
+  if (w.place == SAVE_WHERE_PARTY) {
+    st.tab = SaveTab::Party;
+  } else {
+    st.tab = SaveTab::Boxes;
+    st.box = (uint8_t)(w.place - 1);
+    st.box_slot = 0xFF;
+    st.focus_species = s_n;
+  }
+  nav_go(Screen::Save);
+}
+
+void where_row(lv_obj_t *dl, uint8_t i) {
+  lv_obj_t *row = info_row(dl, i, STR_DETAIL_WHERE, nullptr, false, false);
+  lv_obj_t *val = ui_box(row);
+  lv_obj_set_size(val, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+  lv_obj_set_style_pad_column(val, 4, 0);
+  lv_obj_set_flex_flow(val, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(val, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  SaveHead hd;
+  const SaveWhere &w = s_where[0];
+  const char *who = save_store_head(w.save, &hd) ? hd.name : "?";
+  char buf[40];
+  if (w.place == SAVE_WHERE_PARTY) snprintf(buf, sizeof(buf), tr(STR_WHERE_PARTY_FMT), who);
+  else snprintf(buf, sizeof(buf), tr(STR_WHERE_BOX_FMT), w.place, who);
+  lv_obj_t *l = ui_label(val, &font_12_700, theme::TEXT, buf);
+  lv_obj_set_style_max_width(l, 110, 0);
+  lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
+  if (s_where_n > 1) {
+    char more[8];
+    snprintf(more, sizeof(more), "+%u", s_where_n - 1);
+    lv_obj_t *chip = ui_chip(val, more, theme::SURFACE_2, theme::MUTED, 5);
+    lv_obj_set_height(chip, 16);
+  }
+  lv_obj_align(val, LV_ALIGN_RIGHT_MID, 0, 0);
+  lv_obj_set_style_bg_color(row, c(theme::SURFACE), LV_STATE_PRESSED);
+  lv_obj_set_style_bg_opa(row, LV_OPA_COVER, LV_STATE_PRESSED);
+  ui_on_click(row, on_where);
 }
 
 void build_info(lv_obj_t *p) {
@@ -247,9 +310,12 @@ void build_info(lv_obj_t *p) {
     }
   }
 
+  // "Onde está": só espécies que os saves podem ter (Gen3: até 386).
+  s_where_n = s_unknown ? 0 : save_store_where(s_n, s_where, sizeof(s_where) / sizeof(s_where[0]));
+  s_row_h = s_where_n ? 22 : 26;
   lv_obj_t *dl = ui_box(p);
   lv_obj_set_pos(dl, kX, 8 + 24 + 6 + 20 + 10);
-  lv_obj_set_size(dl, kW, 3 * 26);
+  lv_obj_set_size(dl, kW, (s_where_n ? 4 : 3) * s_row_h);
   char num[12], height[20], weight[20];
   const char *dash = "—";
   bool measures = !s_unknown && s_have_rec;
@@ -262,7 +328,8 @@ void build_info(lv_obj_t *p) {
   info_row(dl, 0, STR_DETAIL_HEIGHT, measures ? height : dash, !measures, true);
   info_row(dl, 1, STR_DETAIL_WEIGHT, measures ? weight : dash, !measures, true);
   info_row(dl, 2, STR_DETAIL_GENERATION, dex_generation_roman(dex_generation_of(s_n)), false,
-           false);
+           s_where_n > 0);
+  if (s_where_n) where_row(dl, 3);
 }
 
 // ---------- Status ----------

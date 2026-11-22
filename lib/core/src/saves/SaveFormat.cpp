@@ -13,3 +13,14 @@ const char *save_merge_dex(const SaveReader &r, DexStatus &out) {
   }
   return nullptr;
 }
+
+bool save_open(const SaveReader &r, SaveHandle *out) {
+  for (const SaveFormat *f : kFormats) {
+    if (!f->detect(r)) continue;
+    out->format = f;
+    out->reader = r;
+    if (f->open(*out)) return true;
+  }
+  out->format = nullptr;
+  return false;
+}

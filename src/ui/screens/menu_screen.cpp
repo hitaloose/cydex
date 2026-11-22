@@ -1,9 +1,11 @@
 // 03 Menu (canvas: Menu.dc.html).
 //   cabeçalho 32 px: logo, "CYDex", pílula "Vitrine"
 //   faixa de capturados (N / 1025 + barra)
-//   grade: tile grande Lista (118 px, 2 linhas) + Buscar, Tipos, Progresso, Ajustes
+//   grade: tile grande Lista (118 px, 2 linhas) + Saves, Hall da Fama, Progresso,
+//   Ajustes (Buscar e Tipos ficam no cabeçalho da Lista/Grade)
 #include <cstdio>
 
+#include "data/SaveStore.h"
 #include "data/SpeciesRepo.h"
 #include "data/Settings.h"
 #include "data/StatusStore.h"
@@ -49,14 +51,24 @@ lv_obj_t *tile(lv_obj_t *parent, lv_coord_t x, lv_coord_t y, lv_coord_t w, lv_co
   return t;
 }
 
+// `count` >= 0: número muted no canto (saves, times do Hall da Fama).
 void small_tile(lv_obj_t *parent, int col, int row, const lv_img_dsc_t *icon, StrId text,
-                Screen target) {
+                Screen target, int32_t count = -1) {
   lv_coord_t x = kGridX + kBigW + kGap + col * (kSmallW + kGap);
   lv_coord_t y = kGridY + row * (kSmallH + kGap);
   lv_obj_t *t = tile(parent, x, y, kSmallW, kSmallH, false, target);
   lv_obj_t *i = ui_icon(t, icon, theme::ACCENT);
   lv_obj_align(i, LV_ALIGN_TOP_LEFT, 0, 0);
+  if (count >= 0) {
+    lv_obj_t *n = ui_label(t, &font_12_600, theme::MUTED, "");
+    lv_label_set_text_fmt(n, "%ld", (long)count);
+    lv_obj_align(n, LV_ALIGN_TOP_RIGHT, 0, 2);
+  }
+  // "Hall da Fama" quebra em 2 linhas no tile pequeno (canvas).
   lv_obj_t *l = ui_label(t, &font_14_600, theme::TEXT, tr(text));
+  lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
+  lv_obj_set_width(l, kSmallW - 14);
+  lv_obj_set_style_text_line_space(l, -1, 0);
   lv_obj_align(l, LV_ALIGN_BOTTOM_LEFT, 0, 0);
 }
 
@@ -141,8 +153,8 @@ lv_obj_t *menu_screen_create() {
   lv_obj_t *title = ui_label(big, &font_20_700, theme::ON_ACCENT, tr(STR_TITLE_LIST));
   lv_obj_align_to(title, sub, LV_ALIGN_OUT_TOP_LEFT, 0, -2);
 
-  small_tile(scr, 0, 0, &icon_search_20, STR_TITLE_SEARCH, Screen::Search);
-  small_tile(scr, 1, 0, &icon_tag_20, STR_TITLE_TYPES, Screen::Types);
+  small_tile(scr, 0, 0, &icon_cartridge_20, STR_TITLE_SAVES, Screen::Saves, save_store_ok_count());
+  small_tile(scr, 1, 0, &icon_trophy_20, STR_TITLE_HOF, Screen::HallOfFame, save_store_hof_total());
   small_tile(scr, 0, 1, &icon_bars_20, STR_TITLE_PROGRESS, Screen::Progress);
   small_tile(scr, 1, 1, &icon_sliders_20, STR_TITLE_SETTINGS, Screen::Settings);
 
