@@ -28,7 +28,7 @@ size_t getArduinoLoopTaskStackSize(void) { return 32768; }
 // Comandos de linha pela serial. Hoje só "shot" (print da tela, ver
 // tools/cydex_screenshot.py).
 static void serial_cmd_tick() {
-  static char line[16];
+  static char line[24];
   static size_t len = 0;
   while (Serial.available() > 0) {
     char c = (char)Serial.read();
@@ -39,7 +39,11 @@ static void serial_cmd_tick() {
     }
     line[len] = '\0';
     len = 0;
-    if (strcmp(line, "shot") == 0) display_capture_to_serial();
+    // "shot" = tela toda; "shot <y0> <y1>" = só essas linhas (o script pede de
+    // novo as faixas que chegaram com byte perdido).
+    unsigned y0 = 0, y1 = 0;
+    if (strcmp(line, "shot") == 0) display_capture_to_serial(0, BOARD_DISPLAY_HEIGHT - 1);
+    else if (sscanf(line, "shot %u %u", &y0, &y1) == 2) display_capture_to_serial(y0, y1);
   }
 }
 

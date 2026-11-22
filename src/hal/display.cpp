@@ -84,12 +84,15 @@ void display_lvgl_init() {
         (unsigned)(kDispBufPx * sizeof(lv_color_t)));
 }
 
-void display_capture_to_serial() {
-  // Invalidar a tela inteira redesenha todas as camadas na área (inclusive a
-  // faixa de Aviso no lv_layer_top). ~150 KB a 115200 bps: uns 13 s parado.
+void display_capture_to_serial(uint16_t y0, uint16_t y1) {
+  // Invalidar a área do display redesenha todas as camadas nela (inclusive a
+  // faixa de Aviso no lv_layer_top). Tela toda: ~150 KB a 115200 bps, uns 13 s parado.
+  if (y1 >= BOARD_DISPLAY_HEIGHT) y1 = BOARD_DISPLAY_HEIGHT - 1;
+  if (y0 > y1) return;
   Serial.flush();
   s_capture = true;
-  lv_obj_invalidate(lv_scr_act());
+  lv_area_t a = {0, (lv_coord_t)y0, BOARD_DISPLAY_WIDTH - 1, (lv_coord_t)y1};
+  _lv_inv_area(lv_disp_get_default(), &a);
   lv_refr_now(nullptr);
   s_capture = false;
   Serial.write((const uint8_t *)"CYSE", 4);

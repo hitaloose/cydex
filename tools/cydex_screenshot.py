@@ -4,6 +4,8 @@
 Manda "shot" pro firmware (src/hal/display.cpp, display_capture_to_serial), que
 redesenha a tela atual e devolve as faixas do flush do LVGL:
 "CYSA" + x, y, w, h (u16 LE) + RGB565 LE + soma (u16), ..., "CYSE". Aqui elas viram um PNG.
+O CH340 perde um byte de vez em quando: a faixa com soma errada é descartada e
+só aquelas linhas são pedidas de novo ("shot <y0> <y1>").
 
     pip install pyserial pillow
     python3 tools/cydex_screenshot.py                 # pergunta o nome a cada print
@@ -66,7 +68,7 @@ class Reader:
     def need(self, n):
         while len(self.buf) < n:
             if time.monotonic() > self.deadline:
-                raise TimeoutError("sem resposta do CYD (firmware sem o comando 'shot'?)")
+                raise TimeoutError("sem resposta do CYD")
             self.buf += self.port.read(max(n - len(self.buf), 1024))
 
     def take(self, n):
@@ -87,36 +89,70 @@ class Reader:
             del self.buf[:-3]  # guarda o fim, o magic pode estar cortado
 
 
-def capture(port):
-    # Sobra de uma tentativa anterior (um "CYSE" atrasado) terminaria este print
-    # vazio: espera a linha ficar quieta antes de pedir.
+def request(port, cmd, img, done):
+    """Manda `cmd` e pinta as faixas que chegarem íntegras. Faixa com byte perdido
+    (o CH340/macOS perde bytes de vez em quando) fica de fora: quem chama pede de
+    novo só aquelas linhas."""
+    # Sobra de um pedido anterior (um "CYSE" atrasado) encerraria este vazio:
+    # espera a linha ficar quieta antes de pedir.
     last = time.monotonic()
     while time.monotonic() - last < 0.5:
         if port.read(4096):
             last = time.monotonic()
-    port.write(b"shot\n")
+    port.write(cmd)
     r = Reader(port, time.monotonic() + TIMEOUT_S)
-    img = Image.new("RGB", (W, H))
     px = img.load()
-    covered = 0
-    while r.sync() == b"CYSA":
-        x, y, w, h = struct.unpack("<4H", r.take(8))
-        if x + w > W or y + h > H:
-            raise ValueError(f"faixa fora da tela: {x},{y} {w}x{h}")
-        data = r.take(w * h * 2)
-        vals = struct.unpack(f"<{w * h}H", data)
-        (sum_,) = struct.unpack("<H", r.take(2))
-        if sum(vals) & 0xFFFF != sum_:
-            raise ValueError(f"faixa y={y} corrompida (log no meio?)")
-        for j in range(h):
-            row = j * w
-            for i in range(w):
-                v = vals[row + i]
-                r5, g6, b5 = v >> 11, (v >> 5) & 0x3F, v & 0x1F
-                px[x + i, y + j] = ((r5 << 3) | (r5 >> 2), (g6 << 2) | (g6 >> 4), (b5 << 3) | (b5 >> 2))
-        covered += w * h
-    if covered < W * H:
-        raise ValueError(f"só {covered} de {W * H} pixels chegaram")
+    try:
+        while r.sync() == b"CYSA":
+            x, y, w, h = struct.unpack("<4H", r.take(8))
+            if w == 0 or h == 0 or x + w > W or y + h > H:
+                continue  # cabeçalho estragado: procura o próximo
+            r.need(w * h * 2 + 2)
+            data = bytes(r.buf[: w * h * 2])
+            (sum_,) = struct.unpack("<H", bytes(r.buf[w * h * 2 : w * h * 2 + 2]))
+            vals = struct.unpack(f"<{w * h}H", data)
+            if sum(vals) & 0xFFFF != sum_:
+                continue  # não consome: o próximo "CYSA" pode estar aí dentro
+            del r.buf[: w * h * 2 + 2]
+            for j in range(h):
+                row = j * w
+                for i in range(w):
+                    v = vals[row + i]
+                    r5, g6, b5 = v >> 11, (v >> 5) & 0x3F, v & 0x1F
+                    px[x + i, y + j] = ((r5 << 3) | (r5 >> 2), (g6 << 2) | (g6 >> 4), (b5 << 3) | (b5 >> 2))
+                if x == 0 and w == W:
+                    done[y + j] = True
+    except TimeoutError:
+        pass  # o "CYSE" se perdeu: fica com o que chegou
+
+
+def missing_ranges(done):
+    out, y = [], 0
+    while y < H:
+        if done[y]:
+            y += 1
+            continue
+        y0 = y
+        while y < H and not done[y]:
+            y += 1
+        out.append((y0, y - 1))
+    return out
+
+
+def capture(port, log=print):
+    img = Image.new("RGB", (W, H))
+    done = [False] * H
+    request(port, b"shot\n", img, done)
+    for attempt in range(1, RETRIES + 1):
+        gaps = missing_ranges(done)
+        if not gaps:
+            return img
+        log("  bytes perdidos nas linhas " + ", ".join(f"{a}–{b}" for a, b in gaps) + f"; pedindo de novo ({attempt})")
+        for y0, y1 in gaps:
+            request(port, f"shot {y0} {y1}\n".encode(), img, done)
+    gaps = missing_ranges(done)
+    if gaps:
+        raise ValueError("faltaram as linhas " + ", ".join(f"{a}–{b}" for a, b in gaps))
     return img
 
 
@@ -155,15 +191,11 @@ def main():
                 if not name:
                     break
             t = time.monotonic()
-            for attempt in range(1, RETRIES + 1):
-                try:
-                    path = save(capture(port), a.out, name, a.scale)
-                    print(f"  {path} ({time.monotonic() - t:.1f} s)")
-                    break
-                except (TimeoutError, ValueError) as e:
-                    print(f"  tentativa {attempt}: {e}", file=sys.stderr)
-            else:
-                print(f"  '{name}' não saiu", file=sys.stderr)
+            try:
+                path = save(capture(port), a.out, name, a.scale)
+                print(f"  {path} ({time.monotonic() - t:.1f} s)")
+            except ValueError as e:
+                print(f"  '{name}' não saiu: {e}", file=sys.stderr)
     except (KeyboardInterrupt, EOFError):
         print()
     finally:

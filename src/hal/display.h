@@ -16,4 +16,4 @@ void display_lvgl_init();
 
 // Redesenha a tela atual e manda os pixels pela Serial (comando "shot"; quem
 // monta o PNG é tools/cydex_screenshot.py). Bloqueia enquanto a serial escoa.
-void display_capture_to_serial();
+void display_capture_to_serial(uint16_t y0, uint16_t y1);
