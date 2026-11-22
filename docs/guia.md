@@ -289,6 +289,9 @@ Medidas, cores, regras de interface, formato dos dados e lições da placa (pilh
 - Baixar saves do CYD pelo app (backup).
 - Mais integrações de avisos.
 - Troca entre aparelhos via ESP-NOW.
+- Sprites brilhantes para as criaturas brilhantes dos saves.
+- App do computador com layout novo e capaz de mudar os Ajustes do CYD.
+- Brilho só de dia e de noite, sem separar vitrine e modo normal.
 
 ## Licença
 

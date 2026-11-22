@@ -235,3 +235,13 @@ Status de espécie: círculo cheio accent com check = **capturado**; contorno mu
 - Troca entre aparelhos via ESP-NOW.
 - Baixar saves pelo app (backup): precisa antes resolver o link do Wi-Fi morrendo sob TX contínuo (ver "Saves pela API"). Um vigia de link (ping no gateway, reconectar) também protegeria os avisos.
 - App: pasta sincronizada (vigiar a pasta de saves do emulador e enviar sozinho) e trocar o `tools/cydex_claude.sh` por um comando do app.
+- **Sprites brilhantes.** Criatura com ★ (Time, Caixas, Membro, Hall da Fama, "Meu time" da Vitrine) mostra o sprite shiny. No SD, arquivos próprios no mesmo `SpriteFile.h` (`sprites_shiny_96/48/24.bin`, o `front_shiny` da PokeAPI no `tools/build_sd.py`); 64 não precisa (Evolução é da espécie). Sem arquivo (SD antigo), cai no normal. Memória igual: mesma vaga, só muda o arquivo lido.
+- **App do computador: reestruturar o layout e editar os Ajustes do CYD.** Hoje o app só manda saves, cidade e sono. Ele passa a ler e mudar os Ajustes (brilho, vitrine, navegação, idioma, som, apagar tela...). No firmware, uma rota nova (`GET /settings` com o `AppSettings` em JSON e `PUT /settings` com os campos a mudar, validados como os da UI; `api: 4` no `GET /`). Depois de gravar, a tela aberta remonta (`nav_reload()`) e o brilho aplica na hora.
+- **Brilho: só dia e noite.** Hoje são 4 controles (normal e vitrine, cada um de dia e de noite). Ficam 2, dia e noite, valendo pra tudo. Em Ajustes › Tela e som saem 2 linhas; `power_use_showcase_level()` some. NVS: migrar lendo as chaves antigas na 1ª vez (dia = o normal de dia, noite = o normal de noite).
+
+Pendências pequenas (vistas nos prints):
+- Evolução: nome longo sai cortado no meio ("Charmanc"); usar "…" (`ui_label_clamp`).
+- Saves: os não reconhecidos vão pro fim da lista (hoje é a ordem do cartão).
+- Caixas: segurar ‹ › não repete (o canvas pede `HoldRepeat`).
+- Canvas: trocar "FireRed/LeafGreen" e "Ruby/Sapphire" por "FR/LG" e "R/S", como no firmware.
+- README: refazer o `saves.png` (mostra "1 saves", de antes do singular).

@@ -110,6 +110,9 @@ The [full guide](docs/guia.md) (in Portuguese) covers the hardware details, the 
 - Save backups through the desktop app
 - More notification integrations
 - Trading between devices over ESP-NOW
+- Shiny sprites for shiny creatures in your saves
+- A redesigned desktop app that can change the display's settings
+- Simpler brightness: one level for day, one for night
 
 ## License
 
