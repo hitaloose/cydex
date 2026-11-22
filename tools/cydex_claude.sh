@@ -6,7 +6,6 @@
 # cada evento vira um aviso ou fecha um.
 #
 #   Notification permission_prompt -> aviso "question" (tag permission)
-#   Notification idle_prompt       -> aviso "waiting"  (tag idle)
 #   Stop                           -> aviso "success"  (tag done)
 #   UserPromptSubmit, SessionEnd   -> fecha o aviso do chat (você respondeu)
 #   PostToolBatch, PostToolUse,
@@ -31,9 +30,9 @@ SID="$(field .session_id)"
 [ -n "$SID" ] || exit 0
 
 if [ "${CYDEX_LANG:-pt-BR}" = "en" ]; then
-  T_PERM="Permission"; T_IDLE="Waiting for you"; T_DONE="Done"
+  T_PERM="Permission"; T_DONE="Done"
 else
-  T_PERM="Permissão"; T_IDLE="Esperando você"; T_DONE="Terminou"
+  T_PERM="Permissão"; T_DONE="Terminou"
 fi
 
 # -4: o CYD só tem IPv4 (sem ele o macOS espera 5 s pela resposta IPv6 do mDNS).
@@ -54,7 +53,6 @@ case "$EVENT" in
   Notification)
     case "$(field .notification_type)" in
       permission_prompt) notify question permission "$T_PERM" message ;;
-      idle_prompt) notify waiting idle "$T_IDLE" message ;;
     esac
     ;;
   Stop) notify success done "$T_DONE" last_assistant_message ;;

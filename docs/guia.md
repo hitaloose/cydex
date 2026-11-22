@@ -181,7 +181,6 @@ Os hooks estão em [`tools/claude-hooks.example.json`](../tools/claude-hooks.exa
 | Evento do Claude Code | Aviso |
 |---|---|
 | Pediu permissão | `question` "Permissão" |
-| Esperando você | `waiting` "Esperando você" |
 | Terminou de responder | `success` "Terminou", com o começo da resposta |
 | Você mandou mensagem ou fechou a sessão | fecha o aviso do chat |
 | Você aprovou a permissão | fecha só o "Permissão" |
