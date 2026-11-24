@@ -688,13 +688,9 @@ lv_obj_t *showcase_show_notices(const Notice *items, const uint32_t *revs, uint8
     const char *second = n.subtitle[0] ? n.subtitle : n.message;
     lv_obj_t *t = second[0] ? ui_label(head, &font_12_700, color, n.title)
                             : ui_label(head, &font_14_700, theme::TEXT, n.title);
-    lv_obj_set_width(t, text_w - 16 - 6);
-    lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
-    if (second[0]) {
-      lv_obj_t *l = ui_label(b, &font_14_700, theme::TEXT, second);
-      lv_obj_set_width(l, text_w);
-      lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
-    }
+    // Uma linha cada, com "…": o LONG_DOT só corta com altura fixa.
+    ui_label_clamp(t, text_w - 16 - 6, 1);
+    if (second[0]) ui_label_clamp(ui_label(b, &font_14_700, theme::TEXT, second), text_w, 1);
     if (asks) {
       lv_obj_t *chev = ui_icon(b, &icon_forward_14, color);
       lv_obj_add_flag(chev, LV_OBJ_FLAG_IGNORE_LAYOUT);
