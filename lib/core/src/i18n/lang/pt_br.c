@@ -108,6 +108,10 @@ const char *const LANG_PT_BR_STRINGS[STR_COUNT] = {
     [STR_SC_EMPTY_CAUGHT] = "Nenhuma espécie capturada ainda",
     [STR_SC_EMPTY_SEEN] = "Nenhuma espécie vista ainda",
     [STR_SC_EMPTY_HINT] = "Toque pra voltar",
+    [STR_SC_ASK_DENY] = "Negar",
+    [STR_SC_ASK_ALLOW] = "Permitir",
+    [STR_SC_ASK_HINT] = "ou responda no terminal",
+    [STR_SC_ASK_NO_DETAIL] = "Sem descrição",
 
     [STR_SET_WIFI] = "Wi-Fi",
     [STR_WIFI_OFF] = "Desligado",

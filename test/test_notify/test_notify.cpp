@@ -9,6 +9,7 @@
 #include "net/WifiList.h"
 #include "notify/NoticeJson.h"
 #include "notify/Notice.h"
+#include "notify/Status.h"
 
 void setUp() {}
 void tearDown() {}
@@ -339,6 +340,182 @@ void test_board_expire() {
   TEST_ASSERT_EQUAL(1, w.expire(0x00000800u));   // 2304 ms depois
 }
 
+
+// ---------- Ações e resposta (15c) ----------
+
+void test_json_actions_list_and_status_fields() {
+  NoticeFields f = parse(R"({"title":"t","actions":["allow", 3, {"x":"y"}, "deny"],"text":"5h",
+    "text_color":"#93A0AD","bar":37,"ttl":600})", 4);
+  TEST_ASSERT_EQUAL_STRING("allow,deny", f.actions);
+  TEST_ASSERT_EQUAL_STRING("5h", f.text);
+  TEST_ASSERT_EQUAL_STRING("#93A0AD", f.text_color);
+  TEST_ASSERT_TRUE(f.has_bar && f.has_ttl);
+  TEST_ASSERT_EQUAL(37, f.bar);
+  TEST_ASSERT_EQUAL(600, f.ttl);
+  // Uma string solta vale; lista em outra chave não entra.
+  TEST_ASSERT_EQUAL_STRING("allow", parse(R"({"actions":"allow"})").actions);
+  TEST_ASSERT_EQUAL_STRING("", parse(R"({"other":["allow"]})").actions);
+  TEST_ASSERT_TRUE(parse(R"({"bar":"10"})").bar_bad);
+  TEST_ASSERT_TRUE(parse(R"({"ttl":[1]})").ttl_bad);
+}
+
+void test_notice_actions() {
+  Notice n;
+  TEST_ASSERT_EQUAL(NoticeError::None, build(R"({"title":"t","actions":["deny","allow","later"]})", &n));
+  TEST_ASSERT_EQUAL(NOTICE_ACTION_ALLOW | NOTICE_ACTION_DENY, n.actions);
+  TEST_ASSERT_EQUAL(NoticeError::None, build(R"({"title":"t"})", &n));
+  TEST_ASSERT_EQUAL(0, n.actions);
+  TEST_ASSERT_EQUAL(NoticeError::None, build(R"({"title":"t","icon":"terminal"})", &n));
+  TEST_ASSERT_EQUAL(NoticeIcon::Terminal, n.icon);
+}
+
+static Notice ask(const char *id, const char *title = "Rodar git", uint32_t timeout_s = 0) {
+  Notice n = make(id, NoticePriority::High, "permission", title, timeout_s);
+  n.actions = NOTICE_ACTION_ALLOW | NOTICE_ACTION_DENY;
+  return n;
+}
+
+void test_board_answer_flow() {
+  NoticeBoard q;
+  Notice a = ask("s1");
+  uint32_t rev = 0;
+  TEST_ASSERT_EQUAL(PostResult::Added, q.post(a, 1000, &rev));
+  TEST_ASSERT_TRUE(rev != 0);
+  TEST_ASSERT_EQUAL(rev, q.rev(0));
+  TEST_ASSERT_EQUAL(NoticeAnswer::None, q.answered("s1", 1000, nullptr));
+  // Revisão errada não vale.
+  TEST_ASSERT_FALSE(q.answer("s1", rev + 1, NoticeAnswer::Allow, 1500));
+  TEST_ASSERT_TRUE(q.answer("s1", rev, NoticeAnswer::Allow, 1500));
+  TEST_ASSERT_EQUAL(0, q.size());  // respondeu: o balão some
+  uint32_t got = 0;
+  TEST_ASSERT_EQUAL(NoticeAnswer::Allow, q.answered("s1", 2000, &got));
+  TEST_ASSERT_EQUAL(rev, got);
+  // Já respondido: não responde de novo.
+  TEST_ASSERT_FALSE(q.answer("s1", rev, NoticeAnswer::Deny, 2000));
+  // Guardada só por um tempo.
+  TEST_ASSERT_EQUAL(NoticeAnswer::None, q.answered("s1", 1500 + NOTICE_ANSWER_KEEP_MS, nullptr));
+}
+
+void test_board_answer_guards() {
+  NoticeBoard q;
+  uint32_t rev = 0;
+  // Sem ações: não aceita resposta.
+  Notice plain = make("s1", NoticePriority::High, "permission", "x");
+  q.post(plain, 0, &rev);
+  TEST_ASSERT_FALSE(q.answer("s1", rev, NoticeAnswer::Allow, 10));
+  // Só "deny": allow recusado.
+  Notice d = ask("s2");
+  d.actions = NOTICE_ACTION_DENY;
+  q.post(d, 0, &rev);
+  TEST_ASSERT_FALSE(q.answer("s2", rev, NoticeAnswer::Allow, 10));
+  TEST_ASSERT_TRUE(q.answer("s2", rev, NoticeAnswer::Deny, 10));
+  // Passou do timeout (antes do expire rodar): recusado.
+  Notice t = ask("s3", "Rodar git", 5);
+  q.post(t, 1000, &rev);
+  TEST_ASSERT_FALSE(q.answer("s3", rev, NoticeAnswer::Allow, 6000));
+  TEST_ASSERT_FALSE(q.answer("nada", 1, NoticeAnswer::Allow, 10));
+}
+
+void test_board_answer_new_request_forgets_old() {
+  NoticeBoard q;
+  uint32_t r1 = 0, r2 = 0;
+  Notice a = ask("s1");
+  q.post(a, 0, &r1);
+  TEST_ASSERT_TRUE(q.answer("s1", r1, NoticeAnswer::Allow, 100));
+  // O pedido seguinte do mesmo chat (mesmo título, logo depois) é novo, não
+  // repetido, e a resposta antiga não vale pra ele.
+  Notice b = ask("s1");
+  TEST_ASSERT_EQUAL(PostResult::Added, q.post(b, 200, &r2));
+  TEST_ASSERT_TRUE(r2 != r1);
+  TEST_ASSERT_EQUAL(NoticeAnswer::None, q.answered("s1", 300, nullptr));
+  // Dois pedidos abertos seguidos com o mesmo título: o segundo troca a revisão.
+  uint32_t r3 = 0;
+  Notice c = ask("s1");
+  TEST_ASSERT_EQUAL(PostResult::Added, q.post(c, 400, &r3));
+  TEST_ASSERT_TRUE(r3 != r2);
+  TEST_ASSERT_FALSE(q.answer("s1", r2, NoticeAnswer::Allow, 500));
+  TEST_ASSERT_EQUAL(1, q.size());
+}
+
+// ---------- StatusBoard (14b) ----------
+
+static StatusError status(const std::string &body, const char *id, StatusItem *out) {
+  NoticeFields f = parse(body);
+  return status_from_fields(f, id, out);
+}
+
+void test_status_fields_and_defaults() {
+  StatusItem it;
+  TEST_ASSERT_EQUAL(StatusError::None, status(R"({"text":"2","icon":"terminal"})", "claude", &it));
+  TEST_ASSERT_EQUAL_STRING("claude", it.id);
+  TEST_ASSERT_EQUAL_STRING("2", it.text);
+  TEST_ASSERT_TRUE(it.has_icon);
+  TEST_ASSERT_EQUAL(NoticeIcon::Terminal, it.icon);
+  TEST_ASSERT_EQUAL_HEX32(0x93A0AD, it.color);
+  TEST_ASSERT_EQUAL_HEX32(0xECEFF2, it.text_color);
+  TEST_ASSERT_EQUAL(-1, it.bar);
+  TEST_ASSERT_EQUAL(0, it.ttl_s);
+  TEST_ASSERT_EQUAL(StatusError::None,
+                    status(R"({"text":"5h","icon":"rocket","color":"#6FCF6A","bar":37,"ttl":60})", "quota", &it));
+  TEST_ASSERT_FALSE(it.has_icon);  // desconhecido: sem ícone
+  TEST_ASSERT_EQUAL(37, it.bar);
+  TEST_ASSERT_EQUAL_HEX32(0x6FCF6A, it.color);
+  TEST_ASSERT_EQUAL(60, it.ttl_s);
+}
+
+void test_status_errors() {
+  StatusItem it;
+  TEST_ASSERT_EQUAL(StatusError::Text, status(R"({})", "a", &it));
+  TEST_ASSERT_EQUAL(StatusError::Id, status(R"({"text":"x"})", "", &it));
+  TEST_ASSERT_EQUAL(StatusError::Id, status(R"({"text":"x"})", "12345678901234567", &it));  // 17
+  TEST_ASSERT_EQUAL(StatusError::Bar, status(R"({"text":"x","bar":101})", "a", &it));
+  TEST_ASSERT_EQUAL(StatusError::Bar, status(R"({"text":"x","bar":-1})", "a", &it));
+  TEST_ASSERT_EQUAL(StatusError::Ttl, status(R"({"text":"x","ttl":86401})", "a", &it));
+  TEST_ASSERT_EQUAL(StatusError::Color, status(R"({"text":"x","color":"red"})", "a", &it));
+  TEST_ASSERT_EQUAL(StatusError::TextColor, status(R"({"text":"x","text_color":"#12"})", "a", &it));
+  TEST_ASSERT_EQUAL_STRING("text_color", status_error_field(StatusError::TextColor));
+}
+
+static StatusItem chip(const char *id, const char *text, uint32_t ttl = 0) {
+  StatusItem it;
+  memset(&it, 0, sizeof(it));
+  snprintf(it.id, sizeof(it.id), "%s", id);
+  snprintf(it.text, sizeof(it.text), "%s", text);
+  it.bar = -1;
+  it.ttl_s = ttl;
+  return it;
+}
+
+void test_status_board() {
+  StatusBoard b;
+  TEST_ASSERT_EQUAL(StatusError::None, b.put(chip("claude", "1"), 0));
+  TEST_ASSERT_EQUAL(StatusError::None, b.put(chip("quota", "5h"), 0));
+  uint32_t v = b.version();
+  // Mesmo conteúdo: não muda a versão (a Vitrine não redesenha).
+  b.put(chip("claude", "1"), 10);
+  TEST_ASSERT_EQUAL(v, b.version());
+  // Mudou: troca no lugar, mantém a ordem.
+  b.put(chip("claude", "2"), 20);
+  TEST_ASSERT_TRUE(b.version() != v);
+  TEST_ASSERT_EQUAL_STRING("claude", b.at(0).id);
+  TEST_ASSERT_EQUAL_STRING("2", b.at(0).text);
+  TEST_ASSERT_EQUAL(StatusError::None, b.put(chip("ci", "ok"), 0));
+  TEST_ASSERT_EQUAL(StatusError::Full, b.put(chip("x", "y"), 0));
+  TEST_ASSERT_EQUAL(1, b.remove("ci"));
+  TEST_ASSERT_EQUAL(0, b.remove("ci"));
+  TEST_ASSERT_EQUAL(2, b.size());
+  TEST_ASSERT_EQUAL(2, b.remove_all());
+}
+
+void test_status_ttl_renews_on_put() {
+  StatusBoard b;
+  b.put(chip("claude", "1", 10), 0);
+  b.put(chip("claude", "1", 10), 8000);  // mesmo estado: só renova o prazo
+  TEST_ASSERT_EQUAL(0, b.expire(12000));
+  TEST_ASSERT_EQUAL(1, b.expire(18000));
+  TEST_ASSERT_EQUAL(0, b.size());
+}
+
 // ---------- HttpRequest ----------
 
 struct Sink {
@@ -482,6 +659,15 @@ int main() {
   RUN_TEST(test_board_full_keeps_most_important);
   RUN_TEST(test_board_dedup);
   RUN_TEST(test_board_expire);
+  RUN_TEST(test_json_actions_list_and_status_fields);
+  RUN_TEST(test_notice_actions);
+  RUN_TEST(test_board_answer_flow);
+  RUN_TEST(test_board_answer_guards);
+  RUN_TEST(test_board_answer_new_request_forgets_old);
+  RUN_TEST(test_status_fields_and_defaults);
+  RUN_TEST(test_status_errors);
+  RUN_TEST(test_status_board);
+  RUN_TEST(test_status_ttl_renews_on_put);
   RUN_TEST(test_http_post_with_body);
   RUN_TEST(test_http_get_no_body_and_long_header);
   RUN_TEST(test_http_delete_with_query);

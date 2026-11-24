@@ -12,6 +12,12 @@
 //     nome vira o apelido + "Nv", o rodapé "#nº · Espécie", o save e a ★;
 //     tipos, medidas e status continuam os da espécie
 //   tocar em qualquer lugar volta pro Menu
+// 14b: indicadores do PUT /status (notify/Status.h) em chips no rodapé, antes
+//   da marca de status; com chip, a marca fica só o círculo. Sobrevivem à
+//   troca de espécie e só são redesenhados quando a versão do quadro muda.
+// 15c: balão de aviso com `actions` ganha "›" e abre a folha de resposta
+//   (Negar / Permitir, que só aceita toque 1 s depois de abrir). Tocar fora
+//   fecha sem responder. Com a folha aberta a espécie não troca.
 // Aleatória sem repetir até mostrar todas (showcase_pick, "saco" por número).
 // Só redesenha na troca (timer do intervalo dos Ajustes); entre trocas nada
 // muda. Cada troca desloca tudo 1–2 px (anti-retenção). Brilho próprio
@@ -30,6 +36,7 @@
 #include "i18n/i18n.h"
 #include "logic/Format.h"
 #include "logic/Showcase.h"
+#include "net/notice_server.h"
 #include "notify/Notice.h"
 #include "screens.h"
 #include "ui/icons/icons.h"
@@ -76,6 +83,23 @@ lv_obj_t *s_card;
 lv_obj_t *s_win;  // janela do sprite da troca atual (filha do s_card)
 lv_timer_t *s_timer;
 lv_obj_t *s_scr;
+// Indicadores (14b): contêiner no rodapé da troca atual e a palavra de status.
+lv_obj_t *s_chips;
+lv_obj_t *s_state_word;
+uint32_t s_chips_version;
+lv_timer_t *s_watch;  // 250 ms: indicadores mudaram? a folha ainda vale?
+// Folha de resposta (15c).
+lv_obj_t *s_wrap;      // balões atuais (escondidos com a folha aberta)
+lv_obj_t *s_sheet;     // nullptr = fechada
+lv_obj_t *s_catch;     // tela inteira por baixo da folha: toque fora fecha
+lv_obj_t *s_allow;
+lv_timer_t *s_arm;
+bool s_armed;
+char s_ask_id[sizeof(Notice::id)];
+uint32_t s_ask_rev;
+uint32_t s_ask_opened;
+constexpr uint32_t kArmMs = 1000;
+constexpr uint32_t kSheetMaxMs = 60000;  // sem toque: fecha sozinha
 
 const StrId kStatLabels[SPECIES_STAT_COUNT] = {STR_STAT_HP,  STR_STAT_ATK, STR_STAT_DEF,
                                                STR_STAT_SPA, STR_STAT_SPD, STR_STAT_SPE};
@@ -274,6 +298,52 @@ void build_stats(const SpeciesRecord *rec, bool unseen) {
   }
 }
 
+// Chips dos indicadores (14b): ícone opcional, texto curto e barra opcional
+// de 28x4 (o que sobra, na cor do indicador). Com algum, a palavra de status
+// some e fica só o círculo.
+void refresh_chips() {
+  if (!s_chips) return;
+  const StatusBoard &b = statuses();
+  s_chips_version = b.version();
+  lv_obj_clean(s_chips);
+  for (uint8_t i = 0; i < b.size(); i++) {
+    const StatusItem &it = b.at(i);
+    lv_obj_t *chip = ui_box(s_chips);
+    lv_obj_set_size(chip, LV_SIZE_CONTENT, 16);
+    lv_obj_set_style_radius(chip, 8, 0);
+    lv_obj_set_style_pad_hor(chip, 6, 0);
+    lv_obj_set_style_pad_column(chip, 4, 0);
+    lv_obj_set_style_bg_color(chip, c(theme::SURFACE_2), 0);
+    lv_obj_set_style_bg_opa(chip, LV_OPA_COVER, 0);
+    lv_obj_set_flex_flow(chip, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(chip, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    if (it.has_icon) ui_icon(chip, notice_icon_12(it.icon), it.color);
+    // Com barra o texto é só o rótulo dela ("5h"): mais leve.
+    ui_label(chip, it.bar >= 0 ? &font_12_600 : &font_12_700, it.text_color, it.text);
+    if (it.bar >= 0) {
+      lv_obj_t *bar = ui_progress(chip, 28, 4);
+      lv_obj_set_style_bg_color(bar, c(theme::BG), 0);
+      lv_obj_set_style_bg_color(bar, c(it.color), LV_PART_INDICATOR);
+      ui_progress_set(bar, it.bar, 100);
+    }
+  }
+  if (b.size()) lv_obj_clear_flag(s_chips, LV_OBJ_FLAG_HIDDEN);
+  else lv_obj_add_flag(s_chips, LV_OBJ_FLAG_HIDDEN);
+  if (s_state_word) {
+    if (b.size()) lv_obj_add_flag(s_state_word, LV_OBJ_FLAG_HIDDEN);
+    else lv_obj_clear_flag(s_state_word, LV_OBJ_FLAG_HIDDEN);
+  }
+}
+
+lv_obj_t *build_chips(lv_obj_t *foot) {
+  s_chips = ui_box(foot);
+  lv_obj_set_size(s_chips, LV_SIZE_CONTENT, 16);
+  lv_obj_set_style_pad_column(s_chips, 4, 0);
+  lv_obj_set_flex_flow(s_chips, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(s_chips, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  return s_chips;
+}
+
 void build_footer(uint16_t n, SpeciesState state) {
   lv_obj_t *foot = ui_box(s_card);
   lv_obj_set_size(foot, kInnerW, kFootH);
@@ -286,7 +356,11 @@ void build_footer(uint16_t n, SpeciesState state) {
   lv_obj_set_flex_flow(foot, LV_FLEX_FLOW_ROW);
   lv_obj_set_flex_align(foot, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
+  // O texto da esquerda cede espaço aos chips: uma linha só, com "…".
   lv_obj_t *id = ui_label(foot, &font_12_600, theme::MUTED, "");
+  lv_obj_set_height(id, lv_font_get_line_height(&font_12_600));
+  lv_label_set_long_mode(id, LV_LABEL_LONG_DOT);
+  s_state_word = nullptr;
   if (s_team_mode) {
     lv_label_set_text_fmt(id, tr(STR_SC_TEAM_FOOTER_FMT), n, species_repo_name(n));
     lv_obj_set_flex_grow(id, 1);
@@ -294,6 +368,8 @@ void build_footer(uint16_t n, SpeciesState state) {
     snprintf(who, sizeof(who), tr(STR_HOF_SAVE_FMT), s_brief_save.name, save_game_name(s_brief_save.game));
     ui_label(foot, &font_12_600, theme::MUTED, who);
     if (s_brief.flags & SAVE_MON_SHINY) ui_icon(foot, &icon_star_12, theme::NOTICE_IDLE);
+    build_chips(foot);
+    refresh_chips();
     return;
   }
   lv_label_set_text_fmt(id, tr(STR_SC_FOOTER_FMT), n, dex_generation_roman(dex_generation_of(n)));
@@ -301,10 +377,12 @@ void build_footer(uint16_t n, SpeciesState state) {
 
   bool caught = state == SpeciesState::Caught;
   bool unseen = state == SpeciesState::Unknown;
+  build_chips(foot);
   ui_status_mark_set(ui_status_mark(foot, 12), state);
-  ui_label(foot, caught ? &font_12_700 : &font_12_600,
-           caught ? theme::ACCENT : unseen ? theme::MUTED : theme::TEXT,
-           tr(caught ? STR_STATE_CAUGHT : unseen ? STR_STATE_UNSEEN : STR_STATE_SEEN));
+  s_state_word = ui_label(foot, caught ? &font_12_700 : &font_12_600,
+                          caught ? theme::ACCENT : unseen ? theme::MUTED : theme::TEXT,
+                          tr(caught ? STR_STATE_CAUGHT : unseen ? STR_STATE_UNSEEN : STR_STATE_SEEN));
+  refresh_chips();
 }
 
 void show(uint16_t n) {
@@ -319,6 +397,8 @@ void show(uint16_t n) {
     n = s_brief.species;
   }
   // O cartão sai antes do sprite: o lv_img ainda aponta pro buffer.
+  s_chips = nullptr;
+  s_state_word = nullptr;
   lv_obj_clean(s_card);
   sprite_free(&s_sprite);
 
@@ -356,9 +436,165 @@ void on_tick(lv_timer_t *) { next(); }
 
 void on_exit(lv_event_t *) { nav_go(Screen::Menu); }
 
+// ---------- Folha de resposta (15c) ----------
+
+void sheet_close() {
+  if (s_arm) lv_timer_del(s_arm);
+  s_arm = nullptr;
+  // Async: quem chama costuma ser o clique de um botão da própria folha.
+  if (s_sheet) lv_obj_del_async(s_sheet);
+  if (s_catch) lv_obj_del_async(s_catch);
+  s_sheet = s_catch = s_allow = nullptr;
+  s_armed = false;
+  if (s_wrap) lv_obj_clear_flag(s_wrap, LV_OBJ_FLAG_HIDDEN);
+  if (s_timer) {
+    lv_timer_reset(s_timer);  // a espécie fica o intervalo inteiro depois de fechar
+    lv_timer_resume(s_timer);
+  }
+}
+
+// Tocar fora (ou a folha passou do tempo): fecha sem responder.
+void on_sheet_outside(lv_event_t *) { sheet_close(); }
+
+void on_sheet_answer(lv_event_t *e) {
+  bool allow = lv_event_get_user_data(e) != nullptr;
+  if (allow && !s_armed) return;  // ainda tracejado: toque sem querer
+  notices().answer(s_ask_id, s_ask_rev, allow ? NoticeAnswer::Allow : NoticeAnswer::Deny, millis());
+  sheet_close();  // o quadro mudou: o notice_center redesenha os balões sem este
+}
+
+// Um redesenho só: o Permitir deixa de ser tracejado.
+void on_arm(lv_timer_t *) {
+  s_arm = nullptr;  // repeat_count 1: o LVGL apaga sozinho
+  s_armed = true;
+  if (!s_allow) return;
+  lv_obj_clean(s_allow);
+  lv_obj_set_style_bg_color(s_allow, c(theme::ACCENT), 0);
+  lv_obj_set_style_bg_opa(s_allow, LV_OPA_COVER, 0);
+  lv_obj_t *l = ui_label(s_allow, &font_14_700, theme::ON_ACCENT, tr(STR_SC_ASK_ALLOW));
+  lv_obj_center(l);
+}
+
+lv_obj_t *sheet_button(lv_obj_t *row, lv_coord_t w) {
+  lv_obj_t *b = ui_box(row);
+  lv_obj_set_size(b, w, 40);
+  lv_obj_set_style_radius(b, 8, 0);
+  return b;
+}
+
+void sheet_open(const Notice &n, uint32_t rev) {
+  if (s_sheet || !s_scr) return;
+  memcpy(s_ask_id, n.id, sizeof(s_ask_id));
+  s_ask_rev = rev;
+  s_ask_opened = millis();
+  s_armed = false;
+  if (s_wrap) lv_obj_add_flag(s_wrap, LV_OBJ_FLAG_HIDDEN);
+  if (s_timer) lv_timer_pause(s_timer);
+
+  s_catch = ui_box(s_scr);
+  lv_obj_set_size(s_catch, 320, 240);
+  ui_on_click(s_catch, on_sheet_outside);
+
+  // Mesmo lugar dos balões (ponta na altura da do 1º), mais alta: 162x176.
+  constexpr lv_coord_t kX = 150, kY = 18, kTail = 7, kW = 162, kH = 176, kPad = 10;
+  constexpr lv_coord_t kInner = kW - 2 - 2 * kPad;  // 140
+  constexpr lv_coord_t kBtnW = (kInner - 6) / 2;   // 67
+  uint32_t color = n.color;
+  s_sheet = ui_box(s_scr);
+  lv_obj_set_pos(s_sheet, kX, kY);
+  lv_obj_set_size(s_sheet, kW + kTail, kH);
+  lv_obj_add_flag(s_sheet, LV_OBJ_FLAG_CLICKABLE);  // toque na folha não fecha
+
+  lv_obj_t *box = ui_box(s_sheet);
+  lv_obj_set_pos(box, kTail, 0);
+  lv_obj_set_size(box, kW, kH);
+  lv_obj_set_style_radius(box, 10, 0);
+  lv_obj_set_style_border_width(box, 1, 0);
+  lv_obj_set_style_border_color(box, c(color), 0);
+  lv_obj_set_style_bg_color(box, c(theme::SURFACE), 0);
+  lv_obj_set_style_bg_opa(box, LV_OPA_COVER, 0);
+  lv_obj_set_style_pad_all(box, kPad, 0);
+  lv_obj_set_style_pad_row(box, 3, 0);
+  lv_obj_set_flex_flow(box, LV_FLEX_FLOW_COLUMN);
+
+  lv_obj_t *head = ui_box(box);
+  lv_obj_set_size(head, kInner, LV_SIZE_CONTENT);
+  lv_obj_set_style_pad_column(head, 6, 0);
+  lv_obj_set_flex_flow(head, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(head, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_START);
+  ui_icon(head, notice_icon(n.icon, true), color);
+  ui_label_clamp(ui_label(head, &font_14_700, theme::TEXT, n.title), kInner - 16 - 6, 2);
+  if (n.subtitle[0]) ui_label_clamp(ui_label(box, &font_12_600, theme::MUTED, n.subtitle), kInner, 1);
+  ui_label_clamp(ui_label(box, &font_12_500, theme::MUTED, n.message[0] ? n.message : tr(STR_SC_ASK_NO_DETAIL)),
+                 kInner, 2);
+  lv_obj_set_flex_grow(ui_box(box), 1);
+
+  lv_obj_t *row = ui_box(box);
+  lv_obj_set_size(row, kInner, 40);
+  lv_obj_set_style_pad_column(row, 6, 0);
+  lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+  if (n.actions & NOTICE_ACTION_DENY) {
+    lv_obj_t *deny = sheet_button(row, n.actions & NOTICE_ACTION_ALLOW ? kBtnW : kInner);
+    lv_obj_set_style_border_width(deny, 1, 0);
+    lv_obj_set_style_border_color(deny, c(theme::LINE), 0);
+    lv_obj_set_style_bg_color(deny, c(theme::SURFACE_2), 0);
+    lv_obj_set_style_bg_opa(deny, LV_OPA_COVER, 0);
+    lv_obj_center(ui_label(deny, &font_14_700, theme::TEXT, tr(STR_SC_ASK_DENY)));
+    ui_on_click(deny, on_sheet_answer, nullptr);
+  }
+  if (n.actions & NOTICE_ACTION_ALLOW) {
+    // Tracejado e apagado até armar (o LVGL 8 não faz borda tracejada: imagem).
+    s_allow = sheet_button(row, n.actions & NOTICE_ACTION_DENY ? kBtnW : kInner);
+    if (n.actions & NOTICE_ACTION_DENY) lv_obj_center(ui_icon(s_allow, &icon_dash_btn_67, theme::FAINT_2));
+    lv_obj_center(ui_label(s_allow, &font_14_700, theme::FAINT, tr(STR_SC_ASK_ALLOW)));
+    ui_on_click(s_allow, on_sheet_answer, (void *)1);
+    s_arm = lv_timer_create(on_arm, kArmMs, nullptr);
+    lv_timer_set_repeat_count(s_arm, 1);
+  }
+  lv_obj_t *hint = ui_label(box, &font_12_500, theme::MUTED, tr(STR_SC_ASK_HINT));
+  lv_obj_set_width(hint, kInner);
+  lv_obj_set_style_text_align(hint, LV_TEXT_ALIGN_CENTER, 0);
+
+  // Ponta apontando pra criatura, na mesma altura da do 1º balão.
+  constexpr lv_coord_t kTailY = 45 + (50 - 14) / 2 - kY;
+  lv_obj_set_pos(ui_icon(s_sheet, &icon_tail_line_8, color), 0, kTailY);
+  lv_obj_set_pos(ui_icon(s_sheet, &icon_tail_fill_8, theme::SURFACE), 0, kTailY);
+}
+
+struct AskRef {
+  Notice n;
+  uint32_t rev;
+};
+AskRef s_asks[3];  // os balões atuais com ações (o toque leva o índice)
+
+void on_ask_tap(lv_event_t *e) {
+  const AskRef &a = s_asks[(uintptr_t)lv_event_get_user_data(e)];
+  sheet_open(a.n, a.rev);
+}
+
+// Indicadores mudaram? A folha aberta ainda vale (o pedido pode ter sido
+// respondido no terminal, trocado por outro ou expirado)?
+void on_watch(lv_timer_t *) {
+  if (statuses().version() != s_chips_version) refresh_chips();
+  if (!s_sheet) return;
+  int i = notices().find(s_ask_id);
+  if (i < 0 || notices().rev((uint8_t)i) != s_ask_rev || millis() - s_ask_opened > kSheetMaxMs) sheet_close();
+}
+
+void on_wrap_delete(lv_event_t *e) {
+  if (lv_event_get_target(e) == s_wrap) s_wrap = nullptr;
+}
+
 void on_delete(lv_event_t *) {
   if (s_timer) lv_timer_del(s_timer);
   s_timer = nullptr;
+  if (s_watch) lv_timer_del(s_watch);
+  s_watch = nullptr;
+  if (s_arm) lv_timer_del(s_arm);
+  s_arm = nullptr;
+  // Os objetos morrem com a tela.
+  s_sheet = s_catch = s_allow = s_wrap = s_chips = s_state_word = nullptr;
+  s_armed = false;
   sprite_free(&s_sprite);
   power_use_normal_level();
   s_scr = nullptr;
@@ -394,13 +630,15 @@ lv_obj_t *showcase_screen_create() {
 
   next();
   s_timer = lv_timer_create(on_tick, (uint32_t)settings().showcase_interval_s * 1000u, nullptr);
+  s_watch = lv_timer_create(on_watch, 250, nullptr);
   return scr;
 }
 
 // 15b: até 3 balões compactos (162x50, título + subtítulo, sem a mensagem)
 // empilhados à direita da janela do sprite; só o 1º tem a ponta. Ficam fora do palco e do painel, então
 // sobrevivem às trocas de espécie.
-lv_obj_t *showcase_show_notices(const Notice *items, uint8_t count, lv_event_cb_t on_tap) {
+lv_obj_t *showcase_show_notices(const Notice *items, const uint32_t *revs, uint8_t count,
+                                lv_event_cb_t on_tap) {
   if (!s_scr) return nullptr;
   constexpr lv_coord_t kTail = 7, kW = 162, kH = 50, kGap = 6, kBalloonPadH = 10;
   constexpr uint8_t kMax = 3;
@@ -411,11 +649,17 @@ lv_obj_t *showcase_show_notices(const Notice *items, uint8_t count, lv_event_cb_
   lv_obj_t *wrap = ui_box(s_scr);
   lv_obj_set_pos(wrap, kWinX + kWinW - 6, kWinY);
   lv_obj_set_size(wrap, kW + kTail, kMax * kH + (kMax - 1) * kGap);
+  s_wrap = wrap;
+  lv_obj_add_event_cb(wrap, on_wrap_delete, LV_EVENT_DELETE, nullptr);
+  if (s_sheet) lv_obj_add_flag(wrap, LV_OBJ_FLAG_HIDDEN);  // a folha fica no lugar
 
   for (uint8_t i = 0; i < count && i < kMax; i++) {
     const Notice &n = items[i];
     uint32_t color = n.color;
     lv_coord_t y = i * (kH + kGap);
+    // Pede resposta: "›" à direita e o toque abre a folha (15c).
+    bool asks = n.actions != 0;
+    constexpr lv_coord_t kChevron = 14 + 4;
 
     lv_obj_t *b = ui_box(wrap);
     lv_obj_set_pos(b, kTail, y);
@@ -435,7 +679,8 @@ lv_obj_t *showcase_show_notices(const Notice *items, uint8_t count, lv_event_cb_
     lv_obj_set_style_pad_column(head, 6, 0);
     lv_obj_set_flex_flow(head, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(head, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    constexpr lv_coord_t kTextW = kW - 2 * kBalloonPadH - 2;
+    lv_coord_t text_w = kW - 2 * kBalloonPadH - 2 - (asks ? kChevron - 2 : 0);
+    if (asks) lv_obj_set_style_pad_right(b, 8, 0);
     ui_icon(head, notice_icon(n.icon, true), color);
     // Ícone + título pequeno na cor do aviso; embaixo, em destaque, o
     // subtítulo (a origem) ou, sem ele, a mensagem. Sem os dois, o título
@@ -443,14 +688,22 @@ lv_obj_t *showcase_show_notices(const Notice *items, uint8_t count, lv_event_cb_
     const char *second = n.subtitle[0] ? n.subtitle : n.message;
     lv_obj_t *t = second[0] ? ui_label(head, &font_12_700, color, n.title)
                             : ui_label(head, &font_14_700, theme::TEXT, n.title);
-    lv_obj_set_width(t, kTextW - 16 - 6);
+    lv_obj_set_width(t, text_w - 16 - 6);
     lv_label_set_long_mode(t, LV_LABEL_LONG_DOT);
     if (second[0]) {
       lv_obj_t *l = ui_label(b, &font_14_700, theme::TEXT, second);
-      lv_obj_set_width(l, kTextW);
+      lv_obj_set_width(l, text_w);
       lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
     }
-    ui_on_click(b, on_tap, (void *)(uintptr_t)i);
+    if (asks) {
+      lv_obj_t *chev = ui_icon(b, &icon_forward_14, color);
+      lv_obj_add_flag(chev, LV_OBJ_FLAG_IGNORE_LAYOUT);
+      lv_obj_align(chev, LV_ALIGN_RIGHT_MID, 0, 0);
+      s_asks[i] = {n, revs[i]};
+      ui_on_click(b, on_ask_tap, (void *)(uintptr_t)i);
+    } else {
+      ui_on_click(b, on_tap, (void *)(uintptr_t)i);
+    }
 
     // Ponta só no 1º (o mais importante): é a criatura falando. Contorno na
     // cor do aviso, miolo surface por cima (cobre a borda).

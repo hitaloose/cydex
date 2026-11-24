@@ -115,9 +115,13 @@ void redraw() {
   lv_obj_t *o = nullptr;
   if (s_in_showcase) {
     Notice items[NOTICE_BOARD_CAP];
+    uint32_t revs[NOTICE_BOARD_CAP];
     uint8_t n = board.size();
-    for (uint8_t i = 0; i < n; i++) items[i] = board.at(i);
-    o = showcase_show_notices(items, n, on_dismiss);
+    for (uint8_t i = 0; i < n; i++) {
+      items[i] = board.at(i);
+      revs[i] = board.rev(i);
+    }
+    o = showcase_show_notices(items, revs, n, on_dismiss);
   }
   if (!o) {
     s_in_showcase = false;
@@ -136,7 +140,20 @@ const lv_img_dsc_t *notice_icon(NoticeIcon icon, bool small) {
     case NoticeIcon::Shield: return small ? &icon_shield_16 : &icon_shield_20;
     case NoticeIcon::Clock: return small ? &icon_clock_16 : &icon_clock_20;
     case NoticeIcon::Bell: return small ? &icon_bell_16 : &icon_bell_20;
+    case NoticeIcon::Terminal: return small ? &icon_terminal_16 : &icon_terminal_20;
     default: return small ? &icon_info_16 : &icon_info_20;
+  }
+}
+
+const lv_img_dsc_t *notice_icon_12(NoticeIcon icon) {
+  switch (icon) {
+    case NoticeIcon::Check: return &icon_check_circle_12;
+    case NoticeIcon::Alert: return &icon_alert_12;
+    case NoticeIcon::Shield: return &icon_shield_12;
+    case NoticeIcon::Clock: return &icon_clock_12;
+    case NoticeIcon::Bell: return &icon_bell_12;
+    case NoticeIcon::Terminal: return &icon_terminal_12;
+    default: return &icon_info_12;
   }
 }
 
@@ -146,6 +163,7 @@ void notice_tick() {
   if ((arrivals & NOTICE_ARRIVAL_SOUND) && settings().sound) speaker_chime();
   NoticeBoard &board = notices();
   board.expire(millis());  // mesmo relógio do notice_server (posted_ms)
+  statuses().expire(millis());  // a Vitrine vê pela versão
   bool want_showcase = nav_current() == Screen::Showcase;
   if (!s_drawn || board.version() != s_drawn_version ||
       (board.size() > 0 && want_showcase != s_in_showcase)) {

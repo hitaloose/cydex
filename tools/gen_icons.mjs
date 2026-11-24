@@ -52,6 +52,7 @@ const PATHS = {
   down: '<path d="M12 5v14M6 13l6 6 6-6"/>',
   male: '<circle cx="10" cy="14" r="6"/><path d="M14.5 9.5L20 4M15 4h5v5"/>',
   female: '<circle cx="12" cy="9" r="6"/><path d="M12 15v7M9 19h6"/>',
+  terminal: '<path d="M5 7l5 5-5 5"/><path d="M13 18h6"/>',
 };
 
 // [nome do ícone no código, traço, tamanho px, espessura do traço]
@@ -108,6 +109,17 @@ const ICONS = [
   ["info_16", "info", 16, 2.4],
   ["alert_16", "alert", 16, 2.4],
   ["bell_16", "bell", 16, 2.4],
+  ["terminal_20", "terminal", 20, 2.2],
+  ["terminal_16", "terminal", 16, 2.4],
+  // Indicadores do rodapé da Vitrine (14b, PUT /status): 12 px.
+  ["terminal_12", "terminal", 12, 2.6],
+  ["info_12", "info", 12, 2.6],
+  ["check_circle_12", "check_circle", 12, 2.6],
+  ["alert_12", "alert", 12, 2.6],
+  ["shield_12", "shield", 12, 2.6],
+  ["clock_12", "clock", 12, 2.6],
+  ["bell_12", "bell", 12, 2.6],
+  ["forward_14", "forward", 14, 2.6],    // › do balão que pede resposta (15c)
   // Saves e Hall da Fama (16–19a)
   ["cartridge_20", "cartridge", 20, 2.2],  // tile do Menu
   ["cartridge_28", "cartridge", 28, 2],    // 16a sem saves
@@ -142,6 +154,8 @@ const RAW = [
   // Ponta do balão da Vitrine (15b): contorno na cor do aviso + miolo surface por cima.
   ["tail_line_8", 8, '<path d="M8 0.5L0.8 7L8 13.5" fill="none" stroke="#fff" stroke-width="1"/>', 8, 14],
   ["tail_fill_8", 8, '<path d="M8.5 1.6L2.2 7L8.5 12.4z" fill="#fff"/>', 8, 14],
+  // Permitir desarmado da folha 15c (67x40, raio 8): o LVGL 8 não faz borda tracejada.
+  ["dash_btn_67", 67, '<rect x="0.5" y="0.5" width="66" height="39" rx="7.5" fill="none" stroke="#fff" stroke-width="1" stroke-dasharray="3 2"/>', 67, 40],
   // ★ de brilhante (a fonte não tem o glifo).
   ["star_13", 24, '<path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7-6.2-3.7-6.2 3.7 1.6-7L2 9.2l7.1-.6z" fill="#fff"/>', 13],
   ["star_12", 24, '<path d="M12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7-6.2-3.7-6.2 3.7 1.6-7L2 9.2l7.1-.6z" fill="#fff"/>', 12],

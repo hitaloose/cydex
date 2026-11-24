@@ -10,9 +10,11 @@
 //    tela; trocar de tela não fecha. Toque fecha e mostra o próximo da fila.
 //  - Na Vitrine: balões (showcase_show_notices). Toque num balão fecha só ele.
 //  - Aviso novo acende a tela (wake) e toca o chime (sound, se "Som ao tocar").
-//  - Tira os que passaram do timeout.
+//  - Tira os que passaram do timeout (e os indicadores do PUT /status com ttl).
 // Chamar no loop.
 void notice_tick();
 
 // Ícone do aviso: 20 px na faixa, 16 px (small) no balão.
 const lv_img_dsc_t *notice_icon(NoticeIcon icon, bool small);
+// 12 px: chips dos indicadores no rodapé da Vitrine (14b).
+const lv_img_dsc_t *notice_icon_12(NoticeIcon icon);

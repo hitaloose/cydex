@@ -24,7 +24,7 @@ const Preset kPresets[] = {
     {"error", 0xFF5A4E, NoticeIcon::Alert, NoticePriority::High},     // accent
 };
 
-const char *const kIcons[] = {"info", "check", "alert", "shield", "clock", "bell"};
+const char *const kIcons[] = {"info", "check", "alert", "shield", "clock", "bell", "terminal"};
 const char *const kPriorities[] = {"high", "normal", "low"};
 
 int index_of(const char *s, const char *const *names, int n) {
@@ -33,14 +33,16 @@ int index_of(const char *s, const char *const *names, int n) {
   return -1;
 }
 
-int hex(char ch) {
+}  // namespace
+
+static int hex(char ch) {
   if (ch >= '0' && ch <= '9') return ch - '0';
   if (ch >= 'a' && ch <= 'f') return ch - 'a' + 10;
   if (ch >= 'A' && ch <= 'F') return ch - 'A' + 10;
   return -1;
 }
 
-bool parse_color(const char *s, uint32_t *out) {
+bool notice_parse_color(const char *s, uint32_t *out) {
   if (s[0] != '#' || strlen(s) != 7) return false;
   uint32_t v = 0;
   for (int i = 1; i < 7; i++) {
@@ -52,7 +54,6 @@ bool parse_color(const char *s, uint32_t *out) {
   return true;
 }
 
-}  // namespace
 
 const char *notice_error_field(NoticeError e) {
   switch (e) {
@@ -105,10 +106,17 @@ NoticeError notice_from_fields(const NoticeFields &f, Notice *out) {
     if (i < 0) return NoticeError::Priority;
     out->priority = (NoticePriority)i;
   }
-  if (f.color[0] && !parse_color(f.color, &out->color)) return NoticeError::Color;
-  if (f.icon[0]) {
-    int i = index_of(f.icon, kIcons, (int)(sizeof(kIcons) / sizeof(kIcons[0])));
-    if (i >= 0) out->icon = (NoticeIcon)i;
+  if (f.color[0] && !notice_parse_color(f.color, &out->color)) return NoticeError::Color;
+  if (f.icon[0]) notice_icon_from_name(f.icon, &out->icon);
+
+  // "allow,deny": nomes desconhecidos ficam de fora (firmware antigo ignora
+  // ação nova; quem manda vê pela falta da resposta).
+  for (const char *p = f.actions; *p;) {
+    const char *end = strchr(p, ',');
+    size_t len = end ? (size_t)(end - p) : strlen(p);
+    if (len == 5 && strncmp(p, "allow", 5) == 0) out->actions |= NOTICE_ACTION_ALLOW;
+    else if (len == 4 && strncmp(p, "deny", 4) == 0) out->actions |= NOTICE_ACTION_DENY;
+    p += len + (end ? 1 : 0);
   }
 
   if (f.timeout_bad || (f.has_timeout && (f.timeout < 0 || (uint32_t)f.timeout > NOTICE_MAX_TIMEOUT_S)))
@@ -124,6 +132,17 @@ NoticeError notice_from_fields(const NoticeFields &f, Notice *out) {
   text_fit(f.subtitle, out->subtitle, sizeof(out->subtitle));
   text_fit(f.message, out->message, sizeof(out->message));
   return NoticeError::None;
+}
+
+bool notice_icon_from_name(const char *s, NoticeIcon *out) {
+  int i = index_of(s, kIcons, (int)(sizeof(kIcons) / sizeof(kIcons[0])));
+  if (i < 0) return false;
+  *out = (NoticeIcon)i;
+  return true;
+}
+
+const char *notice_answer_name(NoticeAnswer a) {
+  return a == NoticeAnswer::Allow ? "allow" : a == NoticeAnswer::Deny ? "deny" : "";
 }
 
 const char *notice_type_name(const Notice &n) {
@@ -151,10 +170,58 @@ void NoticeBoard::sort() {
   }
 }
 
-PostResult NoticeBoard::post(Notice &n, uint32_t now_ms) {
-  if (has_last_ && strcmp(last_given_id_, n.id) == 0 && strcmp(last_title_, n.title) == 0 &&
-      now_ms - last_ms_ < NOTICE_DEDUP_MS) {
+int NoticeBoard::find(const char *id) const {
+  for (uint8_t i = 0; i < count_; i++)
+    if (strcmp(e_[i].n.id, id) == 0) return i;
+  return -1;
+}
+
+void NoticeBoard::forget_answer(const char *id) {
+  for (Answer &a : ans_)
+    if (a.a != NoticeAnswer::None && strcmp(a.id, id) == 0) a.a = NoticeAnswer::None;
+}
+
+bool NoticeBoard::answer(const char *id, uint32_t rev, NoticeAnswer a, uint32_t now_ms) {
+  int i = find(id);
+  if (i < 0 || a == NoticeAnswer::None || e_[i].seq != rev) return false;
+  const Notice &n = e_[i].n;
+  uint8_t need = a == NoticeAnswer::Allow ? NOTICE_ACTION_ALLOW : NOTICE_ACTION_DENY;
+  if (!(n.actions & need)) return false;
+  if (n.timeout_s && now_ms - e_[i].posted_ms >= n.timeout_s * 1000u) return false;
+  forget_answer(id);
+  Answer &slot = ans_[ans_next_];
+  ans_next_ = (uint8_t)((ans_next_ + 1) % NOTICE_BOARD_CAP);
+  memcpy(slot.id, n.id, sizeof(slot.id));
+  slot.rev = rev;
+  slot.ms = now_ms;
+  slot.a = a;
+  erase((uint8_t)i);
+  // Respondeu: o mesmo pedido logo depois é novo, não repetido.
+  if (strcmp(last_id_, id) == 0) has_last_ = false;
+  changed();
+  return true;
+}
+
+NoticeAnswer NoticeBoard::answered(const char *id, uint32_t now_ms, uint32_t *rev) const {
+  for (const Answer &a : ans_) {
+    if (a.a == NoticeAnswer::None || strcmp(a.id, id) != 0) continue;
+    if (now_ms - a.ms >= NOTICE_ANSWER_KEEP_MS) return NoticeAnswer::None;
+    if (rev) *rev = a.rev;
+    return a.a;
+  }
+  return NoticeAnswer::None;
+}
+
+PostResult NoticeBoard::post(Notice &n, uint32_t now_ms, uint32_t *rev) {
+  if (rev) *rev = 0;
+  if (n.id[0]) forget_answer(n.id);
+  // Pedido com resposta nunca é "repetido": dois "Rodar git" seguidos podem
+  // ser comandos diferentes, e o segundo tem que trocar a revisão.
+  if (!n.actions && has_last_ && strcmp(last_given_id_, n.id) == 0 &&
+      strcmp(last_title_, n.title) == 0 && now_ms - last_ms_ < NOTICE_DEDUP_MS) {
     memcpy(n.id, last_id_, sizeof(n.id));
+    int i = find(n.id);
+    if (rev && i >= 0) *rev = e_[i].seq;
     return PostResult::Repeated;
   }
   has_last_ = true;
@@ -185,6 +252,7 @@ PostResult NoticeBoard::post(Notice &n, uint32_t now_ms) {
   e_[count_].n = n;
   e_[count_].seq = ++seq_;
   e_[count_].posted_ms = now_ms;
+  if (rev) *rev = seq_;
   count_++;
   sort();
   changed();

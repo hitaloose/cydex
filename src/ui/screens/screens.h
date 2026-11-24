@@ -45,12 +45,15 @@ struct ChoiceSpec {
 };
 void settings_choice_open(const ChoiceSpec &spec);
 lv_obj_t *showcase_screen_create();
-// Balões dos avisos do Claude Code sobre a Vitrine (15b): até 3, na ordem dada
-// (o mais importante em cima). `on_tap` no toque de um balão, com o índice em
-// user_data (o resto da tela continua saindo pro Menu). Devolve o contêiner
+// Balões dos avisos sobre a Vitrine (15b): até 3, na ordem dada (o mais
+// importante em cima). `on_tap` no toque de um balão, com o índice em
+// user_data (o resto da tela continua saindo pro Menu). Balão de aviso com
+// `actions` não chama `on_tap`: abre a folha de resposta (15c), que responde
+// pelo id + revisão (`revs`, paralelo a `items`). Devolve o contêiner
 // (apagar = tirar os balões); nullptr se a Vitrine não estiver montada.
 struct Notice;
-lv_obj_t *showcase_show_notices(const Notice *items, uint8_t count, lv_event_cb_t on_tap);
+lv_obj_t *showcase_show_notices(const Notice *items, const uint32_t *revs, uint8_t count,
+                                lv_event_cb_t on_tap);
 // Saves e Hall da Fama (16–19a). Estado entre elas: ui/saves_ui.h.
 lv_obj_t *saves_screen_create();
 lv_obj_t *save_screen_create();

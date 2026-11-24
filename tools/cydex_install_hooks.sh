@@ -5,6 +5,8 @@
 #   tools/cydex_install_hooks.sh ~/.claude/settings.json            instala/atualiza
 #   tools/cydex_install_hooks.sh --dry-run ~/.claude/settings.json  só mostra o resultado
 #   tools/cydex_install_hooks.sh --remove ~/.claude/settings.json   tira os do CYDex
+#   tools/cydex_install_hooks.sh --approve ~/.claude/settings.json  instala com o
+#       PermissionRequest síncrono (responder Permitir/Negar no CYD, tela 15c)
 #
 # - Pode rodar de novo à vontade: antes de juntar, tira os hooks do CYDex que já
 #   estavam (os que chamam cydex_claude.sh ou o antigo http://cydex.local/hook).
@@ -16,16 +18,18 @@
 set -eu
 
 usage() {
-  echo "uso: $0 [--dry-run | --remove] <settings.json>" >&2
+  echo "uso: $0 [--dry-run] [--approve | --remove] <settings.json>" >&2
   exit 2
 }
 
 MODE=install
 DRY=0
+APPROVE=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY=1 ;;
     --remove) MODE=remove ;;
+    --approve) APPROVE=1 ;;
     -h | --help) usage ;;
     -*) usage ;;
     *) break ;;
@@ -52,7 +56,8 @@ fi
 # Comando com aspas: o caminho pode ter espaço.
 CMD="\"$CLAUDE_SH\""
 
-RESULT="$(printf '%s' "$CURRENT" | jq --slurpfile ex "$EXAMPLE" --arg cmd "$CMD" --arg mode "$MODE" '
+RESULT="$(printf '%s' "$CURRENT" | jq --slurpfile ex "$EXAMPLE" --arg cmd "$CMD" --arg mode "$MODE" \
+  --argjson approve "$APPROVE" '
   def is_cydex: (.command // "") | test("cydex_claude\\.sh|cydex\\.local/hook");
   # Tira os hooks do CYDex de cada grupo; grupo e evento que ficam vazios saem.
   def strip:
@@ -61,8 +66,15 @@ RESULT="$(printf '%s' "$CURRENT" | jq --slurpfile ex "$EXAMPLE" --arg cmd "$CMD"
                                         | map(select((.hooks | length) > 0))))
                  | with_entries(select((.value | length) > 0)))
     else . end;
+  # --approve: o PermissionRequest espera a resposta do CYD (síncrono, com
+  # prazo maior que o CYDEX_APPROVE_WAIT padrão de 240 s).
   ($ex[0].hooks
-    | with_entries(.value |= map(.hooks |= map(if is_cydex then .command = $cmd else . end))))
+    | with_entries(.key as $ev | .value |= map(.hooks |= map(
+        if is_cydex then
+          .command = $cmd
+          | if $approve == 1 and $ev == "PermissionRequest"
+            then .command = ($cmd + " --approve") | del(.async) | .timeout = 300 else . end
+        else . end))))
     as $mine
   | strip
   | if $mode == "install" then

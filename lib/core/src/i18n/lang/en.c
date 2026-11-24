@@ -108,6 +108,10 @@ const char *const LANG_EN_STRINGS[STR_COUNT] = {
     [STR_SC_EMPTY_CAUGHT] = "No species caught yet",
     [STR_SC_EMPTY_SEEN] = "No species seen yet",
     [STR_SC_EMPTY_HINT] = "Tap to go back",
+    [STR_SC_ASK_DENY] = "Deny",
+    [STR_SC_ASK_ALLOW] = "Allow",
+    [STR_SC_ASK_HINT] = "or answer in the terminal",
+    [STR_SC_ASK_NO_DETAIL] = "No description",
 
     [STR_SET_WIFI] = "Wi-Fi",
     [STR_WIFI_OFF] = "Off",

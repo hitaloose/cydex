@@ -20,11 +20,19 @@ struct NoticeFields {
   char priority[16];
   char icon[16];
   char color[16];
+  // Indicador (PUT /status/<id>).
+  char text[24];
+  char text_color[16];
+  // "actions": lista de strings, juntas por ',' ("allow,deny"). Uma string
+  // solta também vale. Itens que não são string são ignorados.
+  char actions[32];
   // Escalares. has_* = a chave veio; *_bad = veio com tipo/valor que não é o
   // esperado (vira 400).
-  bool has_timeout, has_sound, has_wake;
-  bool timeout_bad, sound_bad, wake_bad;
+  bool has_timeout, has_sound, has_wake, has_bar, has_ttl;
+  bool timeout_bad, sound_bad, wake_bad, bar_bad, ttl_bad;
   int32_t timeout;  // segundos
+  int32_t bar;      // 0-100 (indicador)
+  int32_t ttl;      // segundos (indicador)
   bool sound, wake;
 };
 
@@ -58,6 +66,7 @@ class NoticeJson {
   void end_string();
   void end_scalar();
   void step(char ch);
+  void mark_bad();
 
   NoticeFields f_;
   State state_;
@@ -68,6 +77,7 @@ class NoticeJson {
   uint32_t uni_;
   uint32_t hi_surrogate_;
   uint16_t depth_;        // profundidade dentro de Nested
+  bool in_actions_;       // Nested é a lista "actions"
   char key_[32];
   uint8_t key_len_;
   char *target_;          // buffer do valor atual (nullptr = descartar)

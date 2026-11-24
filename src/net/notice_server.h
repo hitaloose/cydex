@@ -1,15 +1,21 @@
 #pragma once
 
 #include "notify/Notice.h"
+#include "notify/Status.h"
 
 // Servidor HTTP da API (porta 80, http://cydex.local): avisos, saves e Dex. Qualquer coisa na
 // rede manda aviso; o Claude Code é só um cliente (tools/cydex_claude.sh).
 // Todas as rotas, menos GET /, pedem Authorization: Bearer <chave>.
 //
 //   POST   /notices         corpo JSON (title, subtitle, message, id, tag, type,
-//                           priority, icon, color, timeout, sound, wake).
-//                           201 {"id":"..."}; 400 {"error":"<campo>"} ou
+//                           priority, icon, color, timeout, sound, wake, actions).
+//                           201 {"id":"...","rev":N}; 400 {"error":"<campo>"} ou
 //                           {"error":"json"}; 413 com corpo > 4 KB (sem ler).
+//   GET    /notices/<id>    {"id","rev","answer"}: answer null = aberto, "allow"/"deny"
+//                           = respondido na tela (guardado 2 min). 404 = fechado.
+//   PUT    /status/<id>     indicador do rodapé da Vitrine (notify/Status.h). 204;
+//                           400 {"error":"<campo>"}; 409 {"error":"full"}.
+//   DELETE /status/<id>     204. DELETE /status fecha todos. GET /status lista.
 //   DELETE /notices/<id>    fecha o aviso (?tag=x: só se a tag bater). 204.
 //   DELETE /notices         fecha todos. 204.
 //   GET    /notices         [{"id","tag","title","type","age"}] (depuração).
@@ -24,7 +30,7 @@
 //   POST   /saves/reload    refaz o status dos saves (ignora o cache) e remonta a
 //                           tela. 200 {"saves","parsed","seen","caught"}.
 //   GET    /dex             {"count":1025,"seen":"<hex>","caught":"<hex>"} (bit = n-1).
-//   GET    /                {"name":"CYDex","version":"0.1","api":2} (teste com curl)
+//   GET    /                {"name":"CYDex","version":"0.1","api":4,"rssi"} (teste com curl)
 //   401 chave errada (sem ler o corpo), 404, 405, 503 sem cartão.
 //
 // Um cliente por vez, lido aos poucos a cada notice_server_tick() (no loop,
@@ -37,6 +43,9 @@ void notice_server_tick();
 // Avisos abertos (por prioridade). O servidor põe e tira; o ui/notice_center
 // desenha, expira e fecha (toque).
 NoticeBoard &notices();
+// Indicadores (PUT /status). O servidor põe e tira; a Vitrine desenha e o
+// ui/notice_center expira.
+StatusBoard &statuses();
 
 // O que os avisos que entraram desde a última chamada pedem (e zera).
 constexpr uint8_t NOTICE_ARRIVAL_WAKE = 1;

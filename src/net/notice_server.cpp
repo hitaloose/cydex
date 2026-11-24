@@ -36,6 +36,8 @@ static const uint32_t kUploadTimeoutMs = 10000;
 static const int32_t kMaxBody = 4 * 1024;
 static const char kNotices[] = "/notices";
 static const size_t kNoticesLen = sizeof(kNotices) - 1;
+static const char kStatus[] = "/status";
+static const size_t kStatusLen = sizeof(kStatus) - 1;
 static const char kSaves[] = "/saves";
 static const size_t kSavesLen = sizeof(kSaves) - 1;
 // Gen3 tem 128 KB, Gen4 512 KB. Vai em fluxo pro SD: o limite não pesa na RAM.
@@ -55,6 +57,7 @@ static uint32_t s_since = 0;
 static HttpRequest s_req;
 static NoticeJson s_json;
 static NoticeBoard s_board;
+static StatusBoard s_status;
 static uint8_t s_arrivals = 0;
 
 // O que fazer com o corpo, decidido no primeiro pedaço (os cabeçalhos já chegaram).
@@ -64,6 +67,7 @@ static bool s_upload_failed = false;  // cartão cheio / erro de escrita
 
 
 NoticeBoard &notices() { return s_board; }
+StatusBoard &statuses() { return s_status; }
 
 uint8_t notice_take_arrivals() {
   uint8_t a = s_arrivals;
@@ -168,6 +172,19 @@ static bool notices_path(const char *path, const char **id) {
   return true;
 }
 
+// /status ou /status/<id>.
+static bool status_path(const char *path, const char **id) {
+  if (strncmp(path, kStatus, kStatusLen) != 0) return false;
+  const char *rest = path + kStatusLen;
+  if (!*rest) {
+    *id = rest;
+    return true;
+  }
+  if (*rest != '/' || !rest[1]) return false;
+  *id = rest + 1;
+  return true;
+}
+
 // /saves ou /saves/<nome em %XX>. `name` aponta pro que vem depois da '/'.
 static bool saves_path(const char *path, const char **name) {
   if (strncmp(path, kSaves, kSavesLen) != 0) return false;
@@ -184,7 +201,8 @@ static bool saves_path(const char *path, const char **name) {
 // Tudo menos o GET / pede a chave.
 static bool needs_key(const char *path) {
   const char *id;
-  return notices_path(path, &id) || saves_path(path, &id) || strcmp(path, "/dex") == 0 ||
+  return notices_path(path, &id) || status_path(path, &id) || saves_path(path, &id) ||
+         strcmp(path, "/dex") == 0 ||
          strcmp(path, "/location") == 0 || strcmp(path, "/sleep") == 0 ||
          strcmp(path, "/wake") == 0;
 }
@@ -267,20 +285,99 @@ static void post_notice() {
     reply_error(notice_error_field(err));
     return;
   }
-  PostResult r = s_board.post(n, millis());
+  uint32_t rev = 0;
+  PostResult r = s_board.post(n, millis(), &rev);
   if (r == PostResult::Added) {
     s_arrivals |= (n.wake ? NOTICE_ARRIVAL_WAKE : 0) | (n.sound ? NOTICE_ARRIVAL_SOUND : 0);
   }
   LOG_I(TAG, "aviso %s \"%s\"%s", n.id, n.title,
         r == PostResult::Repeated ? " (repetido)" : r == PostResult::Dropped ? " (quadro cheio)" : "");
-  char body[64];
+  char body[80];
   size_t len = 0;
   memcpy(body, "{\"id\":", 6);
   len = 6;
-  json_str(body, sizeof(body) - 1, &len, n.id);
-  body[len++] = '}';
-  body[len] = '\0';
+  json_str(body, sizeof(body) - 16, &len, n.id);
+  snprintf(body + len, sizeof(body) - len, ",\"rev\":%lu}", (unsigned long)rev);
   reply(201, "Created", body);
+}
+
+// GET /notices/<id>: o hook que espera a resposta pergunta aqui a cada 1 s.
+static void get_notice(const char *id) {
+  uint32_t now = millis();
+  uint32_t rev = 0;
+  int i = s_board.find(id);
+  NoticeAnswer a = NoticeAnswer::None;
+  if (i >= 0) rev = s_board.rev((uint8_t)i);
+  else a = s_board.answered(id, now, &rev);
+  if (i < 0 && a == NoticeAnswer::None) {
+    reply(404, "Not Found");
+    return;
+  }
+  char body[96];
+  size_t len = 6;
+  memcpy(body, "{\"id\":", 6);
+  json_str(body, sizeof(body) - 40, &len, id);
+  if (a == NoticeAnswer::None)
+    snprintf(body + len, sizeof(body) - len, ",\"rev\":%lu,\"answer\":null}", (unsigned long)rev);
+  else
+    snprintf(body + len, sizeof(body) - len, ",\"rev\":%lu,\"answer\":\"%s\"}", (unsigned long)rev,
+             notice_answer_name(a));
+  reply(200, "OK", body);
+}
+
+// PUT /status/<id> (corpo JSON), DELETE /status[/<id>], GET /status.
+static void status_route(const char *id, bool is_get, bool is_delete) {
+  bool is_put = strcmp(s_req.method(), "PUT") == 0;
+  if (!*id) {
+    if (is_delete) {
+      s_status.remove_all();
+      reply(204, "No Content");
+    } else if (is_get) {
+      static char body[256];
+      size_t n = 0;
+      body[n++] = '[';
+      uint32_t now = millis();
+      for (uint8_t i = 0; i < s_status.size(); i++) {
+        const StatusItem &it = s_status.at(i);
+        if (i) body[n++] = ',';
+        n += snprintf(body + n, sizeof(body) - n, "{\"id\":");
+        json_str(body, sizeof(body) - 2, &n, it.id);
+        n += snprintf(body + n, sizeof(body) - n, ",\"text\":");
+        json_str(body, sizeof(body) - 2, &n, it.text);
+        n += snprintf(body + n, sizeof(body) - n, ",\"age\":%lu}",
+                      (unsigned long)((now - s_status.set_ms(i)) / 1000));
+      }
+      body[n++] = ']';
+      body[n] = '\0';
+      reply(200, "OK", body);
+    } else {
+      reply(405, "Method Not Allowed");
+    }
+    return;
+  }
+  if (is_delete) {
+    s_status.remove(id);
+    reply(204, "No Content");
+    return;
+  }
+  if (!is_put) {
+    reply(405, "Method Not Allowed");
+    return;
+  }
+  if (!s_json.done()) {
+    reply_error("json");
+    return;
+  }
+  StatusItem it;
+  StatusError err = status_from_fields(s_json.fields(), id, &it);
+  if (err == StatusError::None) err = s_status.put(it, millis());
+  if (err == StatusError::Full) {
+    reply(409, "Conflict", "{\"error\":\"full\"}");
+  } else if (err != StatusError::None) {
+    reply_error(status_error_field(err));
+  } else {
+    reply(204, "No Content");
+  }
 }
 
 static void list_notices() {
@@ -582,9 +679,10 @@ static void finish() {
   bool is_delete = strcmp(method, "DELETE") == 0;
 
   if (strcmp(path, "/") == 0 && is_get) {
-    // api 2: /saves e /dex; api 3: /location (o app do PC confere antes de usar).
+    // api 2: /saves e /dex; api 3: /location; api 4: /status e resposta nos
+    // avisos (actions, GET /notices/<id>). Os clientes conferem antes de usar.
     char body[96];
-    snprintf(body, sizeof(body), "{\"name\":\"CYDex\",\"version\":\"" CYDEX_VERSION "\",\"api\":3,\"rssi\":%d}",
+    snprintf(body, sizeof(body), "{\"name\":\"CYDex\",\"version\":\"" CYDEX_VERSION "\",\"api\":4,\"rssi\":%d}",
              (int)WiFi.RSSI());
     reply(200, "OK", body);
     return;
@@ -610,6 +708,11 @@ static void finish() {
   }
 
   const char *id;
+  if (status_path(path, &id)) {
+    if (strlen(id) >= sizeof(StatusItem::id)) reply_error("id");
+    else status_route(id, is_get, is_delete);
+    return;
+  }
   if (saves_path(path, &id)) {
     saves_route(id, is_get, is_post, is_delete);
     return;
@@ -629,12 +732,16 @@ static void finish() {
       }
       return;
     }
-    if (!is_delete) {
-      reply(405, "Method Not Allowed");
-      return;
-    }
     if (strlen(id) >= sizeof(Notice::id)) {
       reply_error("id");
+      return;
+    }
+    if (is_get) {
+      get_notice(id);
+      return;
+    }
+    if (!is_delete) {
+      reply(405, "Method Not Allowed");
       return;
     }
     char tag[sizeof(Notice::tag)] = "";

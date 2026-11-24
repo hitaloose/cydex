@@ -150,6 +150,11 @@ typedef enum {
   STR_SC_EMPTY_CAUGHT,
   STR_SC_EMPTY_SEEN,
   STR_SC_EMPTY_HINT,
+  // Folha de resposta da Vitrine (15c).
+  STR_SC_ASK_DENY,
+  STR_SC_ASK_ALLOW,
+  STR_SC_ASK_HINT,
+  STR_SC_ASK_NO_DETAIL,
 
   /* Wi-Fi (05c, 05d, 05d', 05e) e teclado da senha */
   STR_SET_WIFI,  /* linha do 05c e título do 05d */
