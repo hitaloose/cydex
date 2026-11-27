@@ -88,6 +88,46 @@ pub struct IndicatorInfo {
     pub age: u64,
 }
 
+/// `GET /settings` (api 6): os Ajustes do CYD e as opções que ele aceita.
+/// Os nomes são os do `PUT /settings` (firmware: logic/SettingsPatch.h).
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
+pub struct CydSettings {
+    pub bright: u8,
+    pub bright_n: u8,
+    pub off_min: u16,
+    pub sound: bool,
+    pub grid: bool,
+    pub sc_int: u16,
+    pub sc_rand: bool,
+    pub sc_src: u8,
+    pub sc_boot: bool,
+    pub lang: String,
+    pub off_opts: Vec<u16>,
+    pub sc_int_opts: Vec<u16>,
+    pub langs: Vec<CydLang>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
+pub struct CydLang {
+    pub code: String,
+    pub name: String,
+}
+
+/// Campos que o `PUT /settings` aceita.
+pub const SETTING_KEYS: [&str; 10] =
+    ["bright", "bright_n", "off_min", "sound", "grid", "sc_int", "sc_rand", "sc_src", "sc_boot", "lang"];
+
+/// `/settings?<campo>=<valor>`, ou None se o campo não existe ou o valor tem
+/// caractere fora de `[A-Za-z0-9-]` (o firmware não decodifica %XX aqui e a
+/// query tem 47 B).
+pub fn setting_path(key: &str, value: &str) -> Option<String> {
+    let ok = SETTING_KEYS.contains(&key)
+        && !value.is_empty()
+        && value.len() <= 11
+        && value.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
+    ok.then(|| format!("/settings?{key}={value}"))
+}
+
 /// `GET /location` (api 3). Sem localidade no CYD, tudo None.
 #[derive(Deserialize, Serialize, Debug, Clone, Default, PartialEq)]
 pub struct SunInfo {
@@ -322,6 +362,16 @@ impl Api {
         self.json(self.request(t, Method::GET, "/status")).await
     }
 
+    pub async fn settings(&self, t: &Target<'_>) -> Result<CydSettings> {
+        self.json(self.request(t, Method::GET, "/settings")).await
+    }
+
+    /// `PUT /settings?<campo>=<valor>`: um campo por vez.
+    pub async fn set_setting(&self, t: &Target<'_>, key: &str, value: &str) -> Result<()> {
+        let path = setting_path(key, value).ok_or_else(|| ApiError::Rejected(key.to_string()))?;
+        self.send(self.request(t, Method::PUT, &path)).await.map(|_| ())
+    }
+
     pub async fn location(&self, t: &Target<'_>) -> Result<SunInfo> {
         self.json(self.request(t, Method::GET, "/location")).await
     }
@@ -415,6 +465,31 @@ mod tests {
         let query = path.split_once('?').unwrap().1;
         assert_eq!(query, "lat=-90.0000&lon=-180.0000&tz=-720");
         assert!(query.len() <= 47);
+    }
+
+    #[test]
+    fn setting_path_fits_and_rejects() {
+        assert_eq!(setting_path("bright", "70").as_deref(), Some("/settings?bright=70"));
+        assert_eq!(setting_path("lang", "pt-BR").as_deref(), Some("/settings?lang=pt-BR"));
+        assert_eq!(setting_path("sound", "true").as_deref(), Some("/settings?sound=true"));
+        assert_eq!(setting_path("bogus", "1"), None);
+        assert_eq!(setting_path("bright", ""), None);
+        assert_eq!(setting_path("bright", "1&grid=1"), None);
+        assert_eq!(setting_path("lang", "pt BR"), None);
+        // Pior caso cabe nos 47 B de query do firmware.
+        for k in SETTING_KEYS {
+            let p = setting_path(k, "abcdefghijk").unwrap();
+            assert!(p.split_once('?').unwrap().1.len() <= 47, "{p}");
+        }
+    }
+
+    #[test]
+    fn settings_parse_firmware_json() {
+        let s: CydSettings = serde_json::from_str(
+            r#"{"bright":70,"bright_n":30,"off_min":2,"sound":true,"grid":false,"sc_int":60,"sc_rand":false,"sc_src":0,"sc_boot":false,"lang":"pt-BR","off_opts":[1,2,5,10,0],"sc_int_opts":[30,60,120,300,900],"langs":[{"code":"pt-BR","name":"Português (Brasil)"},{"code":"en","name":"English"}]}"#,
+        )
+        .unwrap();
+        assert_eq!((s.bright, s.off_opts.len(), s.langs[1].code.as_str()), (70, 5, "en"));
     }
 
     #[test]

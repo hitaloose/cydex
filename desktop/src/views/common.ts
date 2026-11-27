@@ -51,6 +51,22 @@ export function toggle(on: boolean, label: string, onChange: (on: boolean) => vo
   return b;
 }
 
+/// Segmentado (2–5 opções curtas na linha), como o do CYD.
+export function segmented<T>(label: string, options: [T, string][], current: T, onPick: (v: T) => void) {
+  const group = el("div", { class: "seg", role: "group", "aria-label": label });
+  for (const [v, text] of options) {
+    const b = el("button", { "aria-pressed": v === current ? "true" : "false" }, text);
+    b.onclick = () => {
+      if (b.getAttribute("aria-pressed") === "true") return;
+      for (const other of group.querySelectorAll("button")) other.setAttribute("aria-pressed", "false");
+      b.setAttribute("aria-pressed", "true");
+      onPick(v);
+    };
+    group.append(b);
+  }
+  return group;
+}
+
 /// Linha de ajuste: título + dica à esquerda, controle à direita.
 export function settingRow(title: string, hint: string | null, control: HTMLElement) {
   return el(

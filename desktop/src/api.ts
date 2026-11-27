@@ -128,6 +128,23 @@ export interface PowerSnapshot {
   renewed_at: number | null;
 }
 
+/** `GET /settings` do CYD (api 6). Nomes iguais aos do `PUT /settings`. */
+export interface CydSettings {
+  bright: number;
+  bright_n: number;
+  off_min: number;
+  sound: boolean;
+  grid: boolean;
+  sc_int: number;
+  sc_rand: boolean;
+  sc_src: number;
+  sc_boot: boolean;
+  lang: string;
+  off_opts: number[];
+  sc_int_opts: number[];
+  langs: { code: string; name: string }[];
+}
+
 /** Último IP conhecido do CYD (src-tauri/src/locate.rs). */
 export interface Known {
   ip: string;
@@ -182,6 +199,9 @@ export const api = {
   power: (sleep: boolean) => invoke<void>("power_now", { sleep }),
   getPower: () => invoke<PowerSnapshot>("get_power"),
   getLocate: () => invoke<Known | null>("get_locate"),
+  cydSettings: () => invoke<CydSettings>("get_cyd_settings"),
+  setCydSetting: (key: keyof CydSettings, value: string | number | boolean) =>
+    invoke<CydSettings>("set_cyd_setting", { key, value: String(value) }),
   searchPlaces: (query: string) => invoke<Location[]>("search_places", { query }),
   setLocation: (location: Location) => invoke<Status>("set_location", { location }),
   clearLocation: () => invoke<Status>("clear_location"),

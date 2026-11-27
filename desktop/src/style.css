@@ -261,6 +261,19 @@ details[open] summary svg { transform: rotate(90deg); }
 .attempt .title { font-size: 12px; }
 .ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* Ajustes do CYD */
+.seg { display: flex; padding: 2px; border-radius: var(--radius); background: var(--bg); border: 1px solid var(--line); flex: none; }
+.seg button { min-height: 26px; padding: 0 10px; border: 0; border-radius: 6px; background: none; color: var(--muted); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--surface-2); color: var(--text); }
+.seg button:disabled { cursor: default; }
+.tabs { align-self: flex-start; padding: 3px; border-radius: 10px; background: var(--surface); }
+.tabs button { min-height: 30px; padding: 0 14px; font-size: 12px; }
+.card.disabled { opacity: 0.45; pointer-events: none; }
+.slider { display: grid; grid-template-columns: minmax(0, 1fr) 44px; gap: 12px; align-items: center; width: 280px; }
+.slider span { font-size: 12px; font-weight: 600; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; margin: 0; accent-color: var(--accent); }
+.group-title { font-size: 12px; font-weight: 700; color: var(--muted); padding: 8px 0 2px; }
+
 /* Conexão */
 .steps { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .steps li { display: flex; flex-direction: column; gap: 6px; padding: 12px; font-size: 12px; font-weight: 600; }

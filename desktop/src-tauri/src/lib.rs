@@ -18,7 +18,7 @@ mod power_log;
 mod save_name;
 mod tray_text;
 
-use client::{Api, ApiError, IndicatorInfo, Info, NoticeInfo, ReloadResult, SaveInfo, SunInfo, Target};
+use client::{Api, ApiError, CydSettings, IndicatorInfo, Info, NoticeInfo, ReloadResult, SaveInfo, SunInfo, Target};
 use config::{Config, Location};
 use dex::DexSummary;
 use power::PowerEvent;
@@ -635,6 +635,23 @@ async fn close_notice(state: State<'_, AppState>, id: Option<String>) -> CmdResu
     state.api.close_notice(&target(&cfg), id.as_deref()).await
 }
 
+/// Ajustes do CYD (api 6).
+#[tauri::command]
+async fn get_cyd_settings(state: State<'_, AppState>) -> CmdResult<CydSettings> {
+    let cfg = state.cfg();
+    state.api.settings(&target(&cfg)).await
+}
+
+/// Muda um Ajuste do CYD e devolve todos de novo (o CYD é quem valida).
+#[tauri::command]
+async fn set_cyd_setting(state: State<'_, AppState>, key: String, value: String) -> CmdResult<CydSettings> {
+    let cfg = state.cfg();
+    let t = target(&cfg);
+    state.api.set_setting(&t, &key, &value).await.inspect_err(|e| log::warn!("ajuste {key}={value}: {e}"))?;
+    log::info!("ajuste do CYD: {key}={value}");
+    state.api.settings(&t).await
+}
+
 #[tauri::command]
 async fn list_indicators(state: State<'_, AppState>) -> CmdResult<Vec<IndicatorInfo>> {
     let cfg = state.cfg();
@@ -924,6 +941,8 @@ pub fn run() {
             send_notice,
             close_notice,
             list_indicators,
+            get_cyd_settings,
+            set_cyd_setting,
             log_path,
             open_log,
             power_now,
