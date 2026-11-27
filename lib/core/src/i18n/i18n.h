@@ -116,9 +116,7 @@ typedef enum {
   STR_SET_SYSTEM,
   STR_SET_DISPLAY,        /* grupo Tela e som (05a) */
   STR_SET_NAVIGATION,     /* grupo Navegação (05f) */
-  STR_SET_SC_BRIGHTNESS,  /* brilho da vitrine, em Tela e som */
-  STR_SET_BRIGHT_NIGHT,   /* brilho depois do pôr do sol */
-  STR_SET_SC_BRIGHT_NIGHT,
+  STR_SET_BRIGHT_NIGHT,   /* brilho depois do pôr do sol (STR_SET_BRIGHTNESS = o de dia) */
   STR_SET_SUNSET,         /* linha "Pôr do sol" (só leitura) */
   STR_SET_SUNSET_NO_LOC,  /* sem localidade: o app do computador manda */
   STR_SET_SUNSET_NO_TIME, /* sem hora: o NTP vem pelo Wi-Fi */

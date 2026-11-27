@@ -9,10 +9,9 @@ void power_init();
 void power_tick();
 // Nível fixo (%), fora do dia/noite: só a prévia dos sliders de Ajustes.
 void power_set_level(uint8_t percent);
-// Brilho normal dos Ajustes (o de dia ou o de noite, conforme o sol).
+// Brilho dos Ajustes (o de dia ou o de noite, conforme o sol). Vale pra todas
+// as telas, Vitrine também.
 void power_use_normal_level();
-// Brilho da Vitrine (dia ou noite).
-void power_use_showcase_level();
 // Já passou do pôr do sol? false sem localidade ou sem hora (NTP).
 bool power_is_night();
 // A localidade mudou (PUT/DELETE /location): reavalia dia/noite na hora.

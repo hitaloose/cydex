@@ -1,6 +1,7 @@
 // 05a Ajustes › Tela e som (canvas: AjustesTela.dc.html).
-//   Brilho, Brilho à noite, Brilho na vitrine, Vitrine à noite (prévia enquanto
-//   arrasta), Pôr do sol (só leitura; a localidade vem do app), Apagar tela, Som
+//   Brilho de dia e de noite (prévia enquanto arrasta; valem pra tudo, Vitrine
+//   também), Pôr do sol (só leitura; a localidade vem do app), Apagar tela, Som.
+//   5 linhas: uma página só.
 #include <cstdio>
 #include <ctime>
 
@@ -23,24 +24,11 @@ uint8_t s_page;
 Stepper s_off;
 
 void on_back(lv_event_t *) { nav_go(Screen::Settings); }
-void on_save(lv_event_t *) { settings_save(); }
 
 void on_brightness(lv_event_t *e) {
   uint8_t v = (uint8_t)lv_slider_get_value(lv_event_get_target(e));
   settings().brightness = v;
   power_set_level(v);
-}
-
-// Prévia: enquanto arrasta, a tela fica no brilho da vitrine.
-void on_sc_brightness(lv_event_t *e) {
-  uint8_t v = (uint8_t)lv_slider_get_value(lv_event_get_target(e));
-  settings().showcase_brightness = v;
-  power_set_level(v);
-}
-
-void on_sc_brightness_release(lv_event_t *) {
-  power_use_normal_level();
-  settings_save();
 }
 
 // Noite: prévia enquanto arrasta; ao soltar, volta ao brilho da hora.
@@ -50,10 +38,9 @@ void on_night(lv_event_t *e) {
   power_set_level(v);
 }
 
-void on_sc_night(lv_event_t *e) {
-  uint8_t v = (uint8_t)lv_slider_get_value(lv_event_get_target(e));
-  settings().showcase_brightness_night = v;
-  power_set_level(v);
+void on_release(lv_event_t *) {
+  power_use_normal_level();
+  settings_save();
 }
 
 void refresh_off() {
@@ -80,27 +67,13 @@ void on_sound(lv_event_t *e) {
 void row_brightness(lv_obj_t *body, lv_coord_t y, lv_coord_t h, uint8_t) {
   lv_obj_t *row = set_row(body, y, h);
   set_label(row, STR_SET_BRIGHTNESS);
-  set_slider(row, 10, 100, settings().brightness, on_brightness, on_save);
-}
-
-void row_sc_brightness(lv_obj_t *body, lv_coord_t y, lv_coord_t h, uint8_t) {
-  lv_obj_t *row = set_row(body, y, h);
-  set_label(row, STR_SET_SC_BRIGHTNESS);
-  set_slider(row, 5, 100, settings().showcase_brightness, on_sc_brightness,
-             on_sc_brightness_release);
+  set_slider(row, 10, 100, settings().brightness, on_brightness, on_release);
 }
 
 void row_night(lv_obj_t *body, lv_coord_t y, lv_coord_t h, uint8_t) {
   lv_obj_t *row = set_row(body, y, h);
   set_label(row, STR_SET_BRIGHT_NIGHT);
-  set_slider(row, 10, 100, settings().brightness_night, on_night, on_sc_brightness_release);
-}
-
-void row_sc_night(lv_obj_t *body, lv_coord_t y, lv_coord_t h, uint8_t) {
-  lv_obj_t *row = set_row(body, y, h);
-  set_label(row, STR_SET_SC_BRIGHT_NIGHT);
-  set_slider(row, 5, 100, settings().showcase_brightness_night, on_sc_night,
-             on_sc_brightness_release);
+  set_slider(row, 5, 100, settings().brightness_night, on_night, on_release);
 }
 
 // "18:12" (pôr do sol de hoje, no fuso que o app mandou); "—" no dia/noite polar.
@@ -138,8 +111,6 @@ void row_sound(lv_obj_t *body, lv_coord_t y, lv_coord_t h, uint8_t) {
 const SettingsRow kRows[] = {
     {SETTINGS_ROW_H, row_brightness},
     {SETTINGS_ROW_H, row_night},
-    {SETTINGS_ROW_H, row_sc_brightness},
-    {SETTINGS_ROW_H, row_sc_night},
     {SETTINGS_ROW_H, row_sunset},
     {SETTINGS_ROW_H, row_off},
     {SETTINGS_ROW_H, row_sound},

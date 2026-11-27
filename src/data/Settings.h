@@ -9,18 +9,17 @@
 // soltar um slider, não a cada passo: poupa a flash).
 
 struct AppSettings {
+  // Brilho de dia e de noite, valem pra tudo (Vitrine também). O de noite vale
+  // depois do pôr do sol (logic/Sun), só com localidade e hora (NTP).
   uint8_t brightness = 70;          // 10..100 %
+  uint8_t brightness_night = 30;    // 5..100 %
   bool sound = true;                // clique ao tocar (alto-falante no GPIO 26)
   bool open_grid = false;           // tile Lista do Menu abre a Grade
   uint16_t screen_off_min = 2;      // SCREEN_OFF_MIN (logic/Showcase.h); 0 = nunca
   uint16_t showcase_interval_s = 60;  // SHOWCASE_INTERVALS_S
   bool showcase_random = false;
   uint8_t showcase_source = 0;      // ShowcaseSource (logic/Showcase.h): 0 capt, 1 vistos, 2 todos
-  uint8_t showcase_brightness = 35;  // 5..100 %
   bool showcase_on_boot = false;    // Boot vai direto pra Vitrine
-  // Depois do pôr do sol (logic/Sun). Só valem com localidade e hora (NTP).
-  uint8_t brightness_night = 30;           // 10..100 %
-  uint8_t showcase_brightness_night = 15;  // 5..100 %
   // Localidade: vem do app do computador (PUT /location). settings_save_location().
   bool has_location = false;
   float lat = 0, lon = 0;  // graus, leste positivo

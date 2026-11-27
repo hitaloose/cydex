@@ -26,10 +26,11 @@ static const char *KEY_SC_INT = "sc_int";
 static const char *KEY_SC_RAND = "sc_rand";
 static const char *KEY_SC_ALL = "sc_all";  // antiga (bool vistos); lida só se não houver sc_src
 static const char *KEY_SC_SRC = "sc_src";
-static const char *KEY_SC_BRIGHT = "sc_bright";
+// Brilho próprio da Vitrine (dia/noite): saiu. Apagadas no boot, se existirem.
+static const char *KEY_SC_BRIGHT_OLD = "sc_bright";
+static const char *KEY_SC_BRIGHT_N_OLD = "sc_bright_n";
 static const char *KEY_SC_BOOT = "sc_boot";
 static const char *KEY_BRIGHT_N = "bright_n";
-static const char *KEY_SC_BRIGHT_N = "sc_bright_n";
 static const char *KEY_LOC_LAT = "loc_lat";  // ausente = sem localidade
 static const char *KEY_LOC_LON = "loc_lon";
 static const char *KEY_LOC_TZ = "loc_tz";
@@ -64,13 +65,12 @@ void settings_init() {
   else if (p.isKey(KEY_SC_ALL)) s.showcase_source = p.getBool(KEY_SC_ALL) ? 1 : 0;
   else s.showcase_source = d.showcase_source;
   if (s.showcase_source >= SHOWCASE_SOURCE_COUNT) s.showcase_source = d.showcase_source;
-  s.showcase_brightness =
-      clamp_pct(p.isKey(KEY_SC_BRIGHT) ? p.getUChar(KEY_SC_BRIGHT) : d.showcase_brightness, 5);
   s.showcase_on_boot = p.isKey(KEY_SC_BOOT) ? p.getBool(KEY_SC_BOOT) : d.showcase_on_boot;
+  // Dia e noite seguem nas chaves de antes (o brilho normal de dia e de noite).
   s.brightness_night =
-      clamp_pct(p.isKey(KEY_BRIGHT_N) ? p.getUChar(KEY_BRIGHT_N) : d.brightness_night, 10);
-  s.showcase_brightness_night = clamp_pct(
-      p.isKey(KEY_SC_BRIGHT_N) ? p.getUChar(KEY_SC_BRIGHT_N) : d.showcase_brightness_night, 5);
+      clamp_pct(p.isKey(KEY_BRIGHT_N) ? p.getUChar(KEY_BRIGHT_N) : d.brightness_night, 5);
+  if (p.isKey(KEY_SC_BRIGHT_OLD)) p.remove(KEY_SC_BRIGHT_OLD);
+  if (p.isKey(KEY_SC_BRIGHT_N_OLD)) p.remove(KEY_SC_BRIGHT_N_OLD);
   s.has_location = p.isKey(KEY_LOC_LAT) && p.isKey(KEY_LOC_LON);
   if (s.has_location) {
     s.lat = p.getFloat(KEY_LOC_LAT);
@@ -88,14 +88,11 @@ void settings_init() {
   }
   p.end();
   i18n_set_lang(i18n_lang_from_code(code.c_str()));
-  LOG_I(TAG, "idioma=%s brilho=%u som=%u grade=%u apagar=%umin vitrine=%us/%s/%s/%u%%%s",
-        i18n_lang_code(i18n_lang()), s.brightness, s.sound, s.open_grid, s.screen_off_min,
-        s.showcase_interval_s, s.showcase_random ? "aleat" : "seq",
-        s.showcase_source == 2 ? "todos" : s.showcase_source == 1 ? "vistos" : "capt",
-        s.showcase_brightness,
-        s.showcase_on_boot ? " (abre no boot)" : "");
-  LOG_I(TAG, "noite=%u%%/%u%% local=%s%.3f,%.3f tz=%d", s.brightness_night,
-        s.showcase_brightness_night, s.has_location ? "" : "(nenhuma) ", s.lat, s.lon, s.tz_min);
+  LOG_I(TAG, "idioma=%s brilho=%u%%/%u%% som=%u grade=%u apagar=%umin vitrine=%us/%s/%u%s",
+        i18n_lang_code(i18n_lang()), s.brightness, s.brightness_night, s.sound, s.open_grid,
+        s.screen_off_min, s.showcase_interval_s, s.showcase_random ? "aleat" : "seq",
+        s.showcase_source, s.showcase_on_boot ? " (abre no boot)" : "");
+  LOG_I(TAG, "local=%s%.3f,%.3f tz=%d", s.has_location ? "" : "(nenhuma) ", s.lat, s.lon, s.tz_min);
   LOG_I(TAG, "wifi=%s rede=\"%s\"", s.wifi_on ? "ligado" : "desligado", s.wifi_ssid);
 }
 
@@ -113,10 +110,8 @@ void settings_save() {
   p.putUShort(KEY_SC_INT, s.showcase_interval_s);
   p.putBool(KEY_SC_RAND, s.showcase_random);
   p.putUChar(KEY_SC_SRC, s.showcase_source);
-  p.putUChar(KEY_SC_BRIGHT, s.showcase_brightness);
   p.putBool(KEY_SC_BOOT, s.showcase_on_boot);
   p.putUChar(KEY_BRIGHT_N, s.brightness_night);
-  p.putUChar(KEY_SC_BRIGHT_N, s.showcase_brightness_night);
   p.end();
 }
 

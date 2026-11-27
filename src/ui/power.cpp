@@ -16,8 +16,8 @@
 #include "util/log.h"
 
 static uint8_t s_level = 70;
-// Qual brilho dos Ajustes vale agora. Fixed = power_set_level (prévia).
-enum class Mode : uint8_t { Fixed, Normal, Showcase };
+// Qual brilho vale agora. Fixed = power_set_level (prévia dos sliders).
+enum class Mode : uint8_t { Fixed, Normal };
 static Mode s_mode = Mode::Normal;
 static bool s_night = false;
 static uint32_t s_sun_check = 0;  // millis() da última conta do sol
@@ -81,8 +81,6 @@ static bool compute_night() {
 static void apply_mode() {
   const AppSettings &st = settings();
   if (s_mode == Mode::Normal) apply_level(s_night ? st.brightness_night : st.brightness);
-  else if (s_mode == Mode::Showcase)
-    apply_level(s_night ? st.showcase_brightness_night : st.showcase_brightness);
 }
 
 // Recalcula o dia/noite; reaplica o brilho se mudou (ou se `force`).
@@ -102,11 +100,6 @@ void power_set_level(uint8_t percent) {
 
 void power_use_normal_level() {
   s_mode = Mode::Normal;
-  sun_update(true);
-}
-
-void power_use_showcase_level() {
-  s_mode = Mode::Showcase;
   sun_update(true);
 }
 

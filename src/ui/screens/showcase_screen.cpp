@@ -607,7 +607,7 @@ lv_obj_t *showcase_screen_create() {
   s_scr = scr;
   lv_obj_add_event_cb(scr, on_delete, LV_EVENT_DELETE, nullptr);
   ui_on_click(scr, on_exit);
-  power_use_showcase_level();
+  power_use_normal_level();
 
   build_list();
   if (s_count == 0) {
