@@ -751,7 +751,21 @@ async fn clear_location(app: AppHandle) -> CmdResult<Status> {
 
 // ---------- janela e bandeja ----------
 
+/// macOS: com a janela aberta o app fica no Dock como um app normal; com
+/// ela fechada, só na bandeja. Windows/Linux já fazem isso sozinhos (janela
+/// escondida sai da barra de tarefas).
+fn set_in_dock(app: &AppHandle, visible: bool) {
+    #[cfg(target_os = "macos")]
+    {
+        use tauri::ActivationPolicy::{Accessory, Regular};
+        let _ = app.set_activation_policy(if visible { Regular } else { Accessory });
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = (app, visible);
+}
+
 fn show_window(app: &AppHandle) {
+    set_in_dock(app, true);
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
         let _ = w.unminimize();
@@ -855,9 +869,8 @@ pub fn run() {
                 tray: Mutex::new(None),
             });
 
-            // Só bandeja: sem ícone no Dock.
-            #[cfg(target_os = "macos")]
-            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            // Começa só na bandeja; show_window põe no Dock se a janela abrir.
+            set_in_dock(app.handle(), false);
 
             build_tray(app.handle())?;
 
@@ -881,10 +894,12 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            // Fechar a janela só esconde: o app segue na bandeja.
+            // Fechar a janela só esconde: sai do Dock e o app segue na bandeja.
+            // Sair de vez é pela bandeja ou ⌘Q (ExitRequested, não bloqueado).
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
                 let _ = window.hide();
+                set_in_dock(window.app_handle(), false);
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -912,6 +927,13 @@ pub fn run() {
             set_location,
             clear_location,
         ])
-        .run(tauri::generate_context!())
-        .expect("erro ao iniciar o CYDex");
+        .build(tauri::generate_context!())
+        .expect("erro ao iniciar o CYDex")
+        .run(|_app, _event| {
+            // Clique no ícone do Dock com a janela escondida: abre de novo.
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { has_visible_windows: false, .. } = _event {
+                show_window(_app);
+            }
+        });
 }

@@ -206,7 +206,7 @@ const ptBR = {
   "app.open_log": "Abrir o log",
   "app.reveal_log": "Mostrar na pasta",
   "app.diag_hint": "Cada requisição sai no log com o motivo da falha. Se o app não acha o CYD no macOS, confira Ajustes do Sistema › Privacidade e Segurança › Rede Local: cada versão nova do app pede de novo.",
-  "app.footer": "CYDex Desktop {v} · fechar a janela só esconde; Sair fica no menu da bandeja.",
+  "app.footer": "CYDex Desktop {v} · fechar a janela deixa o app só na bandeja; Sair (na bandeja ou ⌘Q) fecha de vez.",
 
   "type.info": "Informação",
   "type.success": "Sucesso",
@@ -423,7 +423,7 @@ const en: Record<Key, string> = {
   "app.open_log": "Open the log",
   "app.reveal_log": "Show in folder",
   "app.diag_hint": "Every request goes to the log with the reason it failed. If the app can't find the CYD on macOS, check System Settings › Privacy & Security › Local Network: each new app version asks again.",
-  "app.footer": "CYDex Desktop {v} · closing the window only hides it; Quit is in the tray menu.",
+  "app.footer": "CYDex Desktop {v} · closing the window leaves the app only in the tray; Quit (tray or ⌘Q) closes it for good.",
 
   "type.info": "Info",
   "type.success": "Success",
