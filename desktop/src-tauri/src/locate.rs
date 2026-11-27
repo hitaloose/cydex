@@ -134,10 +134,22 @@ pub async fn resolve_how(host: &str) -> io::Result<(Ipv4Addr, &'static str)> {
 /// O mdns-sd já falhou com outro caminho achando o IP: não adianta tentar.
 static MDNS_DEAD: AtomicBool = AtomicBool::new(false);
 
-/// Procura de novo, sem olhar o que está guardado.
+/// Uma procura por vez: no boot várias requisições chegam juntas, e cada
+/// uma procurava o mesmo nome (4 getaddrinfo em paralelo no log).
+fn searching() -> &'static tokio::sync::Mutex<()> {
+    static LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(Default::default)
+}
+
+/// Procura de novo, sem olhar o que está guardado (a não ser que outra
+/// procura tenha terminado enquanto esta esperava a vez).
 pub async fn resolve_fresh(host: &str) -> io::Result<(Ipv4Addr, &'static str)> {
     if let Ok(ip) = host.parse::<Ipv4Addr>() {
         return Ok((ip, "ip"));
+    }
+    let _one = searching().lock().await;
+    if let Some((ip, true)) = last_known(host) {
+        return Ok((ip, "cache"));
     }
     let k = key(host);
     let local = k.ends_with(".local");
