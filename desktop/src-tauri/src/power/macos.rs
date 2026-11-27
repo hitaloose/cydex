@@ -8,8 +8,34 @@ use objc2_app_kit::{
     NSWorkspace, NSWorkspaceDidWakeNotification, NSWorkspaceScreensDidSleepNotification,
     NSWorkspaceScreensDidWakeNotification, NSWorkspaceWillSleepNotification,
 };
-use objc2_foundation::{NSNotification, NSOperationQueue};
+use objc2::rc::Retained;
+use objc2::runtime::{NSObjectProtocol, ProtocolObject};
+use objc2_foundation::{NSActivityOptions, NSNotification, NSOperationQueue, NSProcessInfo, NSString};
 use std::ptr::NonNull;
+
+/// Atividade do NSProcessInfo enquanto um envio de energia está no ar. O app
+/// só tem bandeja (ActivationPolicy::Accessory) e é candidato ao App Nap, que
+/// segura timers e rede justo quando a tela apaga. Termina no `drop`.
+pub struct Activity(Retained<ProtocolObject<dyn NSObjectProtocol>>);
+
+// SAFETY: o NSProcessInfo é thread-safe (Send + Sync no objc2) e o token
+// opaco só volta pra ele no endActivity.
+unsafe impl Send for Activity {}
+
+pub fn begin_activity(reason: &str) -> Activity {
+    let reason = NSString::from_str(reason);
+    // Não impede o computador de dormir: só tira o app do App Nap.
+    let token = NSProcessInfo::processInfo()
+        .beginActivityWithOptions_reason(NSActivityOptions::UserInitiatedAllowingIdleSystemSleep, &reason);
+    Activity(token)
+}
+
+impl Drop for Activity {
+    fn drop(&mut self) {
+        // SAFETY: o token veio do beginActivityWithOptions_reason acima.
+        unsafe { NSProcessInfo::processInfo().endActivity(&self.0) };
+    }
+}
 
 pub fn start(on: Handler) {
     let center = NSWorkspace::sharedWorkspace().notificationCenter();

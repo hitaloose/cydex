@@ -11,7 +11,16 @@ pub type Handler = Arc<dyn Fn(PowerEvent) + Send + Sync + 'static>;
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(target_os = "macos")]
-pub use macos::start;
+pub use macos::{begin_activity, start};
+
+/// Fora do macOS não tem App Nap: atividade vazia.
+#[cfg(not(target_os = "macos"))]
+pub struct Activity;
+
+#[cfg(not(target_os = "macos"))]
+pub fn begin_activity(_reason: &str) -> Activity {
+    Activity
+}
 
 #[cfg(windows)]
 mod windows;

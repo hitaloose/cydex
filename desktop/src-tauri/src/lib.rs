@@ -256,6 +256,8 @@ fn send_power(app: AppHandle, trigger: PowerEvent, sleep: bool, cfg: Config) {
 /// resultado. Para se chegar um evento mais novo (dormiu de novo no meio).
 async fn run_power(app: &AppHandle, trigger: PowerEvent, sleep: bool, cfg: Config, tries: u32) -> Attempt {
     let state = app.state::<AppState>();
+    // macOS: fora do App Nap até terminar (drop no fim da função).
+    let _activity = power::begin_activity("CYDex: apagar/acender a tela junto com o computador");
     let seq = state.power_seq.fetch_add(1, Ordering::SeqCst) + 1;
     let route = if sleep { "/sleep" } else { "/wake" };
     let started = std::time::Instant::now();
