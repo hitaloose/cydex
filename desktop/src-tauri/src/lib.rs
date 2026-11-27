@@ -9,6 +9,8 @@ mod client;
 mod config;
 mod dex;
 mod discovery;
+#[cfg(target_os = "macos")]
+mod dock;
 mod geocode;
 mod locate;
 mod power;
@@ -759,6 +761,10 @@ fn set_in_dock(app: &AppHandle, visible: bool) {
     {
         use tauri::ActivationPolicy::{Accessory, Regular};
         let _ = app.set_activation_policy(if visible { Regular } else { Accessory });
+        // Fora do .app o Dock mostraria o ícone genérico (a cada troca pra Regular).
+        if visible {
+            dock::set_icon();
+        }
     }
     #[cfg(not(target_os = "macos"))]
     let _ = (app, visible);
