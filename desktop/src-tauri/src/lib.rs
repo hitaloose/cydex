@@ -71,6 +71,10 @@ struct AppState {
     power_seq: AtomicU64,
     /// Últimos envios de energia (tela "Tela e energia").
     power: Mutex<PowerLog>,
+    /// Um envio de energia no ar por vez: o CYD atende um cliente por vez, e
+    /// dois POSTs juntos (tela apagou + vai dormir) brigavam. Fica preso só
+    /// durante cada tentativa, não na espera entre elas.
+    power_send: tokio::sync::Mutex<()>,
     tray: Mutex<Option<TrayItems>>,
 }
 
@@ -225,7 +229,17 @@ fn on_power(app: &AppHandle, event: PowerEvent) {
         log::debug!("power: {event:?} ignorado (sem sincronia ou sem chave)");
         return;
     }
-    send_power(app.clone(), event, event.is_sleep(), cfg);
+    let sleep = event.is_sleep();
+    let now = now_ms();
+    if state.power.lock().unwrap().join(sleep, now) {
+        let route = if sleep { "/sleep" } else { "/wake" };
+        let a = Attempt { outcome: Outcome::Joined, ..Attempt::new(now, event, sleep, route) };
+        log::info!("{}", a.log_line());
+        state.power.lock().unwrap().push(a);
+        emit_power(app);
+        return;
+    }
+    send_power(app.clone(), event, sleep, cfg);
 }
 
 /// Dispara o envio em segundo plano (eventos do sistema e bandeja).
@@ -256,8 +270,17 @@ async fn run_power(app: &AppHandle, trigger: PowerEvent, sleep: bool, cfg: Confi
         if attempt > 0 {
             tokio::time::sleep(Duration::from_secs(2)).await;
         }
-        a.tries += 1;
-        let r = state.api.power(&target(&cfg), route, Duration::from_secs(3)).await;
+        let r = {
+            let _one = state.power_send.lock().await;
+            // Esperou o envio anterior terminar: se ele era de um evento mais
+            // novo, este já não vale.
+            if state.power_seq.load(Ordering::SeqCst) != seq {
+                a.outcome = Outcome::Superseded;
+                break;
+            }
+            a.tries += 1;
+            state.api.power(&target(&cfg), route, Duration::from_secs(3)).await
+        };
         a.ip = r.ip.map(|ip| ip.to_string());
         a.via = r.via.map(String::from);
         match r.result {
@@ -684,6 +707,7 @@ pub fn run() {
                 status: Mutex::new(Status::default()),
                 power_seq: AtomicU64::new(0),
                 power: Mutex::new(PowerLog::default()),
+                power_send: tokio::sync::Mutex::new(()),
                 tray: Mutex::new(None),
             });
 

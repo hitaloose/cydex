@@ -8,6 +8,10 @@ use std::collections::VecDeque;
 /// Quantas tentativas a tela mostra.
 pub const KEEP: usize = 8;
 
+/// Eventos na mesma direção mais perto que isso viram um (tela apagou +
+/// vai dormir chegam juntos).
+pub const JOIN_MS: i64 = 1000;
+
 /// O que pediu o envio.
 #[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -36,6 +40,8 @@ impl Trigger {
 pub enum Outcome {
     Ok,
     Failed,
+    /// Juntado com um evento igual logo antes (não mandou nada).
+    Joined,
     /// Chegou um evento mais novo antes de dar certo.
     Superseded,
 }
@@ -122,6 +128,7 @@ impl Attempt {
                 self.ms,
                 self.tries
             ),
+            Outcome::Joined => format!("{head} juntado com o anterior"),
             Outcome::Superseded => format!("{head} cancelado por um evento mais novo, {} tentativa(s)", self.tries),
         }
     }
@@ -154,6 +161,8 @@ impl PowerSnapshot {
 pub struct PowerLog {
     attempts: VecDeque<Attempt>,
     pub busy: bool,
+    /// Último evento aceito: (apagar?, quando).
+    last_event: Option<(bool, i64)>,
     pub safety_until: Option<i64>,
     pub safety: Option<bool>,
 }
@@ -162,6 +171,18 @@ impl PowerLog {
     pub fn push(&mut self, a: Attempt) {
         self.attempts.push_front(a);
         self.attempts.truncate(KEEP);
+    }
+
+    /// Evento do sistema chegando: true = é igual ao anterior em menos de
+    /// `JOIN_MS` e não precisa mandar nada. Senão vira o "anterior".
+    pub fn join(&mut self, sleep: bool, now: i64) -> bool {
+        if let Some((s, at)) = self.last_event {
+            if s == sleep && (0..JOIN_MS).contains(&(now - at)) {
+                return true;
+            }
+        }
+        self.last_event = Some((sleep, now));
+        false
     }
 
     pub fn snapshot(&self, sync: bool) -> PowerSnapshot {
@@ -195,11 +216,26 @@ mod tests {
     }
 
     #[test]
-    fn last_sent_skips_superseded() {
+    fn last_sent_skips_joined_and_superseded() {
         let mut log = PowerLog::default();
         log.push(Attempt { reason: Some(Reason::Connect), ..att(Outcome::Failed) });
+        log.push(att(Outcome::Joined));
         log.push(att(Outcome::Superseded));
         assert_eq!(log.snapshot(true).last_sent().unwrap().outcome, Outcome::Failed);
+    }
+
+    #[test]
+    fn joins_same_direction_within_a_second() {
+        let mut log = PowerLog::default();
+        assert!(!log.join(true, 10_000)); // tela apagou: manda
+        assert!(log.join(true, 10_400)); // vai dormir logo depois: junta
+        assert!(log.join(true, 10_999)); // ainda conta do primeiro
+        assert!(!log.join(true, 11_000)); // 1 s depois do primeiro: manda
+        assert!(!log.join(false, 11_200)); // direção oposta nunca junta
+        assert!(log.join(false, 11_300));
+        assert!(!log.join(true, 11_350));
+        // Relógio voltando (NTP) não junta.
+        assert!(!log.join(true, 5_000));
     }
 
     #[test]

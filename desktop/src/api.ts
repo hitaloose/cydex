@@ -97,7 +97,7 @@ export interface IndicatorInfo {
 }
 
 export type Trigger = "screen_off" | "system_sleep" | "screen_on" | "system_wake" | "manual";
-export type Outcome = "ok" | "failed" | "superseded";
+export type Outcome = "ok" | "failed" | "joined" | "superseded";
 export type Reason = { kind: "resolve" | "connect" | "timeout" | "unauthorized" } | { kind: "http"; status: number };
 
 /** Um envio de /sleep ou /wake (src-tauri/src/power_log.rs). */

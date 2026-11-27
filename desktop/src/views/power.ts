@@ -88,6 +88,10 @@ function historyRow(a: Attempt) {
     const r = reasonText(a.reason, a.ip);
     detail = `${r.charAt(0).toUpperCase()}${r.slice(1)} · ${t("power.tries", { n: a.tries })}`;
     dot = "fail";
+  } else if (a.outcome === "joined") {
+    chip = el("span", { class: "chip" }, t("power.chip_joined"));
+    detail = t("power.detail_joined");
+    dot = "";
   } else {
     chip = el("span", { class: "chip" }, t("power.chip_superseded"));
     detail = t("power.detail_superseded");
