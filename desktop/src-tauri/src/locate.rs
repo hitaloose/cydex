@@ -1,20 +1,25 @@
 //! Acha o IP do CYDex a partir do nome (`cydex.local`).
 //!
-//! No app empacotado do macOS o mDNS não funciona: nem o getaddrinfo do
-//! sistema nem o mdns-sd recebem resposta, mesmo com a permissão de Rede
-//! Local (que libera o TCP por IP). No Terminal, as duas coisas resolvem. Por
-//! isso tenta, em ordem, e registra no log qual deu certo:
+//! No app empacotado do macOS o mdns-sd não recebe nada; quem resolve é o
+//! getaddrinfo do sistema (e a varredura, se tudo falhar). No Terminal, os
+//! dois resolvem. Por isso tenta, em ordem, e registra no log qual deu certo:
 //!
-//! 1. mdns-sd (mDNS próprio);
+//! 1. mdns-sd (mDNS próprio), até falhar uma vez com outro caminho achando:
+//!    aí fica de fora até o app fechar (custava 1,8 s em cada procura);
 //! 2. resolvedor do sistema (getaddrinfo, só IPv4);
 //! 3. macOS: `dscacheutil` como processo separado;
 //! 4. varredura da sub-rede: porta 80 respondendo `"name":"CYDex"` no `GET /`.
 //!
-//! O IP achado fica em cache (`forget` limpa quando a conexão falha).
+//! O IP achado fica guardado. Vale 10 min desde a última requisição que deu
+//! certo (`touch`); quando uma conexão falha, `forget` só marca como vencido.
+//! O último IP conhecido nunca some: os eventos de energia usam ele primeiro,
+//! mesmo vencido (`last_known`), e só procuram de novo se ele não responder.
 
+use serde::Serialize;
 use std::collections::HashMap;
 use std::io;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -22,18 +27,91 @@ use tokio::net::TcpStream;
 
 const TTL: Duration = Duration::from_secs(600);
 
-fn cache() -> &'static Mutex<HashMap<String, (Ipv4Addr, Instant)>> {
-    static CACHE: OnceLock<Mutex<HashMap<String, (Ipv4Addr, Instant)>>> = OnceLock::new();
+/// O que se sabe do IP de um nome.
+#[derive(Clone, Debug)]
+struct Entry {
+    ip: Ipv4Addr,
+    /// Caminho que achou (`sistema`, `varredura`…).
+    how: &'static str,
+    found_wall: i64,
+    /// Última requisição que deu certo nesse IP.
+    ok: Instant,
+    ok_wall: Option<i64>,
+    /// Uma conexão falhou depois do último ok.
+    stale: bool,
+}
+
+impl Entry {
+    fn new(ip: Ipv4Addr, how: &'static str, now: Instant, wall: i64) -> Self {
+        Entry { ip, how, found_wall: wall, ok: now, ok_wall: None, stale: false }
+    }
+
+    /// Dá pra usar sem procurar de novo.
+    fn fresh(&self, now: Instant) -> bool {
+        !self.stale && now.duration_since(self.ok) < TTL
+    }
+
+    fn touch(&mut self, now: Instant, wall: i64) {
+        self.ok = now;
+        self.ok_wall = Some(wall);
+        self.stale = false;
+    }
+}
+
+fn cache() -> &'static Mutex<HashMap<String, Entry>> {
+    static CACHE: OnceLock<Mutex<HashMap<String, Entry>>> = OnceLock::new();
     CACHE.get_or_init(Default::default)
+}
+
+fn wall_ms() -> i64 {
+    chrono::Utc::now().timestamp_millis()
 }
 
 fn key(host: &str) -> String {
     host.trim_end_matches('.').to_ascii_lowercase()
 }
 
-/// A conexão falhou: o próximo pedido procura de novo (o DHCP pode ter trocado).
+/// A conexão falhou: o próximo pedido procura de novo (o DHCP pode ter
+/// trocado). O IP fica como último conhecido.
 pub fn forget(host: &str) {
-    cache().lock().unwrap().remove(&key(host));
+    if let Some(e) = cache().lock().unwrap().get_mut(&key(host)) {
+        e.stale = true;
+    }
+}
+
+/// Uma requisição pra esse nome deu certo: renova o prazo.
+pub fn touch(host: &str) {
+    if let Some(e) = cache().lock().unwrap().get_mut(&key(host)) {
+        e.touch(Instant::now(), wall_ms());
+    }
+}
+
+/// Último IP achado pra esse nome, vencido ou não.
+pub fn last_known(host: &str) -> Option<(Ipv4Addr, bool)> {
+    let now = Instant::now();
+    cache().lock().unwrap().get(&key(host)).map(|e| (e.ip, e.fresh(now)))
+}
+
+/// Pra tela Conexão ("Como o app acha o CYD").
+#[derive(Serialize, Clone, Debug)]
+pub struct Known {
+    pub ip: String,
+    pub how: &'static str,
+    /// Quando foi achado e quando deu certo pela última vez (ms desde 1970).
+    pub found_at: i64,
+    pub ok_at: Option<i64>,
+    pub fresh: bool,
+}
+
+pub fn known(host: &str) -> Option<Known> {
+    let now = Instant::now();
+    cache().lock().unwrap().get(&key(host)).map(|e| Known {
+        ip: e.ip.to_string(),
+        how: e.how,
+        found_at: e.found_wall,
+        ok_at: e.ok_wall,
+        fresh: e.fresh(now),
+    })
 }
 
 pub async fn resolve(host: &str) -> io::Result<Ipv4Addr> {
@@ -47,34 +125,49 @@ pub async fn resolve_how(host: &str) -> io::Result<(Ipv4Addr, &'static str)> {
     if let Ok(ip) = host.parse::<Ipv4Addr>() {
         return Ok((ip, "ip"));
     }
-    let k = key(host);
-    if let Some((ip, at)) = cache().lock().unwrap().get(&k) {
-        if at.elapsed() < TTL {
-            return Ok((*ip, "cache"));
-        }
+    if let Some((ip, true)) = last_known(host) {
+        return Ok((ip, "cache"));
     }
+    resolve_fresh(host).await
+}
+
+/// O mdns-sd já falhou com outro caminho achando o IP: não adianta tentar.
+static MDNS_DEAD: AtomicBool = AtomicBool::new(false);
+
+/// Procura de novo, sem olhar o que está guardado.
+pub async fn resolve_fresh(host: &str) -> io::Result<(Ipv4Addr, &'static str)> {
+    if let Ok(ip) = host.parse::<Ipv4Addr>() {
+        return Ok((ip, "ip"));
+    }
+    let k = key(host);
     let local = k.ends_with(".local");
     let h = k.clone();
+    let started = Instant::now();
     let found = tokio::task::spawn_blocking(move || {
-        if local {
+        let mut mdns_failed = false;
+        if local && !MDNS_DEAD.load(Ordering::Relaxed) {
             if let Some(ip) = by_mdns(&h) {
-                return Some((ip, "mdns-sd"));
+                return (Some((ip, "mdns-sd")), false);
             }
+            mdns_failed = true;
         }
         if let Some(ip) = by_system(&h) {
-            return Some((ip, "sistema"));
+            return (Some((ip, "sistema")), mdns_failed);
         }
         #[cfg(target_os = "macos")]
         if local {
             if let Some(ip) = by_dscacheutil(&h) {
-                return Some((ip, "dscacheutil"));
+                return (Some((ip, "dscacheutil")), mdns_failed);
             }
         }
-        None
+        (None, false)
     })
     .await
-    .ok()
-    .flatten();
+    .unwrap_or((None, false));
+    let (found, skip_mdns) = found;
+    if skip_mdns && !MDNS_DEAD.swap(true, Ordering::Relaxed) {
+        log::info!("{k}: mdns-sd não respondeu e o sistema achou; sem mdns-sd até o app fechar");
+    }
     let found = match found {
         Some(f) => Some(f),
         // Só pro nome padrão: um nome qualquer não deve virar "o primeiro CYDex".
@@ -83,12 +176,12 @@ pub async fn resolve_how(host: &str) -> io::Result<(Ipv4Addr, &'static str)> {
     };
     match found {
         Some((ip, how)) => {
-            log::info!("{k} -> {ip} ({how})");
-            cache().lock().unwrap().insert(k, (ip, Instant::now()));
+            log::info!("{k} -> {ip} ({how}, {} ms)", started.elapsed().as_millis());
+            cache().lock().unwrap().insert(k, Entry::new(ip, how, Instant::now(), wall_ms()));
             Ok((ip, how))
         }
         None => {
-            log::warn!("{k}: não achei o CYDex");
+            log::warn!("{k}: não achei o CYDex ({} ms)", started.elapsed().as_millis());
             Err(io::Error::new(io::ErrorKind::NotFound, format!("{k} não encontrado")))
         }
     }
@@ -239,6 +332,37 @@ pub async fn scan(first: bool) -> Vec<Ipv4Addr> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn entry_ttl_counts_from_last_ok_and_forget_only_marks_stale() {
+        let t0 = Instant::now();
+        let ip = Ipv4Addr::new(192, 168, 0, 42);
+        let mut e = Entry::new(ip, "sistema", t0, 0);
+        assert!(e.fresh(t0 + Duration::from_secs(599)));
+        assert!(!e.fresh(t0 + Duration::from_secs(601)));
+        // Requisição boa aos 9 min: vale até os 19.
+        e.touch(t0 + Duration::from_secs(540), 1);
+        assert!(e.fresh(t0 + Duration::from_secs(1100)));
+        assert_eq!(e.ok_wall, Some(1));
+        e.stale = true;
+        assert!(!e.fresh(t0 + Duration::from_secs(541)));
+        // Vencido, mas o IP continua lá.
+        assert_eq!(e.ip, ip);
+        e.touch(t0 + Duration::from_secs(600), 2);
+        assert!(e.fresh(t0 + Duration::from_secs(601)));
+    }
+
+    #[test]
+    fn forget_keeps_last_known() {
+        let host = "teste-forget.local";
+        cache().lock().unwrap().insert(key(host), Entry::new(Ipv4Addr::new(10, 0, 0, 7), "sistema", Instant::now(), 0));
+        assert_eq!(last_known(host), Some((Ipv4Addr::new(10, 0, 0, 7), true)));
+        forget(host);
+        assert_eq!(last_known(host), Some((Ipv4Addr::new(10, 0, 0, 7), false)));
+        touch(host);
+        assert_eq!(last_known(host), Some((Ipv4Addr::new(10, 0, 0, 7), true)));
+        assert!(known(host).unwrap().ok_at.is_some());
+    }
 
     #[test]
     fn scan_targets_are_private_and_bounded() {

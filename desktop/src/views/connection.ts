@@ -1,25 +1,39 @@
 // Conexão (D05) e primeira vez sem chave (D05b).
-import { api, type Status } from "../api";
+import { api, type Known, type Status } from "../api";
 import { busy, el, toast } from "../dom";
-import { t } from "../i18n";
-import { errorBox, header, signal, type View } from "./common";
+import { lang, t, type Key } from "../i18n";
+import { errorBox, fmtAge, header, signal, type View } from "./common";
 
 export function connectionView(getStatus: () => Status): View {
   let how: HTMLElement | null = null;
 
-  const drawHow = (st: Status) => {
+  const drawHow = async (st: Status) => {
     if (!how) return;
+    const known: Known | null = await api.getLocate().catch(() => null);
     const rows: [string, string][] = [];
+    if (!known) {
+      rows.push([t("conn.last_ip"), t("conn.last_ip_none")]);
+    } else {
+      const age = known.ok_at ? Math.max(0, Math.round((Date.now() - known.ok_at) / 1000)) : null;
+      let value: string;
+      if (!known.fresh) value = t("conn.last_ip_stale", { ip: known.ip });
+      else if (age !== null) value = t("conn.last_ip_ok", { ip: known.ip, a: fmtAge(age) });
+      else value = known.ip;
+      rows.push([t("conn.last_ip"), value]);
+      const at = new Date(known.found_at).toLocaleTimeString(lang(), { hour: "2-digit", minute: "2-digit" });
+      rows.push([t("conn.found_by"), t("conn.found_by_value", { h: t(`via.${known.how}` as Key), t: at })]);
+    }
     if (st.info) rows.push([t("conn.firmware"), t("conn.fw_value", { v: st.info.version, a: st.info.api })]);
-    how.hidden = !rows.length;
+    how.hidden = false;
     how.replaceChildren(
       el("h2", {}, t("conn.how")),
       el("dl", { class: "facts" }, ...rows.flatMap(([k, v]) => [el("dt", {}, k), el("dd", {}, v)])),
+      el("div", { class: "muted tiny" }, t("conn.how_hint")),
     );
   };
 
   return {
-    onStatus: drawHow,
+    onStatus: (st) => void drawHow(st),
     async render(root) {
       const cfg = await api.getConfig();
       const first = !cfg.key;
@@ -96,7 +110,7 @@ export function connectionView(getStatus: () => Status): View {
       how = el("section", { class: "card stack tight", hidden: true });
       parts.push(how);
       root.replaceChildren(...parts);
-      drawHow(getStatus());
+      void drawHow(getStatus());
       if (cfg.key) test();
     },
   };

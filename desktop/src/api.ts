@@ -124,6 +124,15 @@ export interface PowerSnapshot {
   safety: boolean | null;
 }
 
+/** Último IP conhecido do CYD (src-tauri/src/locate.rs). */
+export interface Known {
+  ip: string;
+  how: string;
+  found_at: number;
+  ok_at: number | null;
+  fresh: boolean;
+}
+
 export interface Found {
   host: string;
   ip: string;
@@ -168,6 +177,7 @@ export const api = {
   logPath: () => invoke<string>("log_path"),
   power: (sleep: boolean) => invoke<void>("power_now", { sleep }),
   getPower: () => invoke<PowerSnapshot>("get_power"),
+  getLocate: () => invoke<Known | null>("get_locate"),
   searchPlaces: (query: string) => invoke<Location[]>("search_places", { query }),
   setLocation: (location: Location) => invoke<Status>("set_location", { location }),
   clearLocation: () => invoke<Status>("clear_location"),

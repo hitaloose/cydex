@@ -538,6 +538,12 @@ async fn power_now(app: AppHandle, sleep: bool) -> CmdResult<()> {
     }
 }
 
+/// Último IP conhecido do CYD e como foi achado (tela Conexão).
+#[tauri::command]
+fn get_locate(state: State<AppState>) -> Option<locate::Known> {
+    locate::known(&state.cfg().host)
+}
+
 #[tauri::command]
 fn get_power(state: State<AppState>) -> PowerSnapshot {
     state.power.lock().unwrap().snapshot(state.cfg().power_sync)
@@ -733,6 +739,7 @@ pub fn run() {
             open_log,
             power_now,
             get_power,
+            get_locate,
             search_places,
             set_location,
             clear_location,

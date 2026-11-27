@@ -148,6 +148,9 @@ pub struct PowerTry {
 #[derive(Clone)]
 pub struct Api {
     http: reqwest::Client,
+    /// Só pro /sleep e /wake, direto no IP: conectar no LAN é rápido, e um
+    /// IP morto tem que falhar logo pra dar tempo de procurar de novo.
+    power_http: reqwest::Client,
 }
 
 pub struct Target<'a> {
@@ -167,7 +170,13 @@ impl Api {
             .user_agent("cydex-desktop")
             .build()
             .expect("cliente HTTP");
-        Api { http }
+        let power_http = reqwest::Client::builder()
+            .connect_timeout(POWER_CONNECT)
+            .pool_max_idle_per_host(0)
+            .user_agent("cydex-desktop")
+            .build()
+            .expect("cliente HTTP");
+        Api { http, power_http }
     }
 
     fn request(&self, t: &Target, method: Method, path: &str) -> reqwest::RequestBuilder {
@@ -198,6 +207,10 @@ impl Api {
         })?;
         let status = resp.status();
         log::debug!("{} {}", resp.url().path(), status.as_u16());
+        // O CYD respondeu: o IP guardado vale mais 10 min.
+        if let Some(host) = resp.url().host_str() {
+            crate::locate::touch(host);
+        }
         if status.is_success() {
             return Ok(resp);
         }
@@ -324,31 +337,68 @@ impl Api {
         self.send(self.request(t, Method::DELETE, "/location")).await.map(|_| ())
     }
 
-    /// `POST /sleep` ou `/wake` (`route`), uma tentativa curta. Acha o IP
-    /// antes, por fora do reqwest, pra separar no registro a falha de achar o
-    /// IP da de conectar. As repetições ficam em quem chama (lib.rs).
+    /// `POST /sleep` ou `/wake` (`route`), uma tentativa. Acha o IP por
+    /// fora do reqwest, pra separar no registro a falha de achar o IP da de
+    /// conectar. Começa pelo último IP conhecido, mesmo vencido (sem procurar,
+    /// que leva segundos); se ele não conectar, procura de novo e tenta o
+    /// novo IP. As repetições ficam em quem chama (lib.rs).
     pub async fn power(&self, t: &Target<'_>, route: &str, timeout: Duration) -> PowerTry {
-        let (ip, via) = match crate::locate::resolve_how(t.host).await {
+        let mut old = None;
+        if let Some((ip, fresh)) = crate::locate::last_known(t.host) {
+            let result = self.power_at(ip, t, route, timeout).await;
+            let via = if fresh { "cache" } else { "último" };
+            match result {
+                Err(Reason::Connect) => {
+                    log::info!("power: {ip} ({via}) não conectou, procurando de novo");
+                    crate::locate::forget(t.host);
+                    old = Some(ip);
+                }
+                _ => return self.finish(t, ip, via, result),
+            }
+        }
+        let (ip, how) = match crate::locate::resolve_fresh(t.host).await {
             Ok(found) => found,
-            Err(_) => return PowerTry { ip: None, via: None, result: Err(Reason::Resolve) },
+            Err(_) => return PowerTry { ip: old, via: None, result: Err(Reason::Resolve) },
         };
-        let mut req = self.http.post(format!("http://{ip}{route}")).timeout(timeout);
+        if old == Some(ip) {
+            // Mesmo IP: o CYD está fora do ar, não adianta repetir agora.
+            return PowerTry { ip: Some(ip), via: Some(how), result: Err(Reason::Connect) };
+        }
+        let result = self.power_at(ip, t, route, timeout).await;
+        let via = if old.is_some() { RE_VIA.iter().find(|(h, _)| *h == how).map(|(_, v)| *v).unwrap_or("re") } else { how };
+        self.finish(t, ip, via, result)
+    }
+
+    fn finish(&self, t: &Target<'_>, ip: Ipv4Addr, via: &'static str, result: std::result::Result<(), Reason>) -> PowerTry {
+        match result {
+            Ok(()) => crate::locate::touch(t.host),
+            Err(Reason::Connect) => crate::locate::forget(t.host),
+            Err(_) => {}
+        }
+        PowerTry { ip: Some(ip), via: Some(via), result }
+    }
+
+    async fn power_at(&self, ip: Ipv4Addr, t: &Target<'_>, route: &str, timeout: Duration) -> std::result::Result<(), Reason> {
+        let mut req = self.power_http.post(format!("http://{ip}{route}")).timeout(timeout);
         if !t.key.is_empty() {
             req = req.bearer_auth(t.key);
         }
-        let result = match req.send().await {
+        match req.send().await {
             Ok(resp) if resp.status().is_success() => Ok(()),
             Ok(resp) if resp.status() == StatusCode::UNAUTHORIZED => Err(Reason::Unauthorized),
             Ok(resp) => Err(Reason::Http(resp.status().as_u16())),
-            Err(e) => {
-                // Conexão que não abriu: o DHCP pode ter trocado o IP.
-                crate::locate::forget(t.host);
-                Err(if e.is_connect() { Reason::Connect } else { Reason::Timeout })
-            }
-        };
-        PowerTry { ip: Some(ip), via: Some(via), result }
+            // Com o connect_timeout curto, um IP morto também cai em is_connect.
+            Err(e) => Err(if e.is_connect() { Reason::Connect } else { Reason::Timeout }),
+        }
     }
 }
+
+/// Conectar no LAN leva milissegundos; mais que isso é IP morto.
+const POWER_CONNECT: Duration = Duration::from_millis(1500);
+
+/// `via` quando o último IP não conectou e foi achado de novo.
+const RE_VIA: [(&str, &str); 4] =
+    [("mdns-sd", "re-mdns-sd"), ("sistema", "re-sistema"), ("dscacheutil", "re-dscacheutil"), ("varredura", "re-varredura")];
 
 fn location_path(lat: f64, lon: f64, tz_min: i32) -> String {
     format!("/location?lat={lat:.4}&lon={lon:.4}&tz={tz_min}")
