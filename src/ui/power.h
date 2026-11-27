@@ -24,3 +24,9 @@ void power_wake();
 // fecha, apaga de novo. Toque (usar o CYD) ou POST /wake saem desse modo.
 void power_remote_sleep();
 void power_remote_wake();
+// POST /wake?ttl=<s> (api 5): rede de segurança. Sem prazo valendo, é um
+// /wake e começa o prazo; com prazo valendo, só estende (não acende nem conta
+// como toque). Se ninguém renovar a tempo, power_tick() chama o
+// power_remote_sleep(). Toque, /sleep e /wake sem ttl cancelam o prazo.
+// Devolve true se foi um /wake de verdade.
+bool power_remote_keepalive(uint32_t ttl_s);

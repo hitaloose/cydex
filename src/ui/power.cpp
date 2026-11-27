@@ -10,6 +10,7 @@
 #include "hal/speaker.h"
 #include "hal/touch.h"
 #include "logic/Sun.h"
+#include "logic/WakeLease.h"
 #include "net/notice_server.h"
 #include "ui/nav.h"
 #include "util/log.h"
@@ -25,6 +26,8 @@ static bool s_asleep = false;
 // acesa; quando o último fecha, apaga de novo. Toque ou /wake desfazem.
 static bool s_remote = false;
 static bool s_swallow = false;  // engole o toque que acordou até o dedo sair
+// POST /wake?ttl (api 5): sem renovação no prazo, entra no modo do /sleep.
+static WakeLease s_lease;
 
 static void wake() {
   s_asleep = false;
@@ -48,6 +51,11 @@ static bool touch_filter(bool pressed) {
 
 static void on_press() {
   if (settings().sound) speaker_click();
+  // Quem toca está usando o CYD: o prazo do computador não apaga mais a tela.
+  if (s_lease.active()) {
+    s_lease.clear();
+    LOG_I("power", "prazo do /wake cancelado (toque)");
+  }
 }
 
 void power_init() {
@@ -116,6 +124,10 @@ void power_tick() {
   speaker_update();
   // Uma vez por minuto basta (e pega o NTP chegando depois do boot).
   if (millis() - s_sun_check >= 60000u) sun_update(false);
+  if (s_lease.expired(millis())) {
+    LOG_I("power", "computador sumiu (prazo do /wake sem renovar)");
+    power_remote_sleep();
+  }
   if (s_remote) {
     if (!s_asleep && notices().size() == 0) remote_off();
     return;
@@ -130,13 +142,22 @@ void power_tick() {
 }
 
 void power_remote_sleep() {
+  s_lease.clear();
   s_remote = true;
   if (!s_asleep && notices().size() == 0) remote_off();
 }
 
 void power_remote_wake() {
+  s_lease.clear();
   s_remote = false;
   power_wake();
+}
+
+bool power_remote_keepalive(uint32_t ttl_s) {
+  bool fresh = !s_lease.active();
+  if (fresh) power_remote_wake();  // sem prazo valendo: é um /wake de verdade
+  s_lease.renew(millis(), ttl_s);
+  return fresh;
 }
 
 void power_wake() {

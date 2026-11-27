@@ -124,6 +124,8 @@ export interface PowerSnapshot {
   /** Rede de segurança (api ≥ 5): quando o CYD apaga sozinho, ms. */
   safety_until: number | null;
   safety: boolean | null;
+  /** Última renovação do prazo que deu certo, ms. */
+  renewed_at: number | null;
 }
 
 /** Último IP conhecido do CYD (src-tauri/src/locate.rs). */

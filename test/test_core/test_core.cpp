@@ -16,6 +16,7 @@
 #include "logic/Search.h"
 #include "logic/Showcase.h"
 #include "logic/Sun.h"
+#include "logic/WakeLease.h"
 #include "saves/SaveFormat.h"
 #include "saves/SaveName.h"
 #include "saves/gen3/Gen3Sections.h"
@@ -764,6 +765,58 @@ void test_sun_parse_location() {
   TEST_ASSERT_EQUAL_STRING("tz", sun_parse_location("lat=0&lon=0", &lat, &lon, &tz));
 }
 
+// ---------- WakeLease (POST /wake?ttl) ----------
+
+void test_wake_lease_renew_and_expire() {
+  WakeLease l;
+  TEST_ASSERT_FALSE(l.active());
+  TEST_ASSERT_FALSE(l.expired(1000));
+  // Primeiro: sem prazo valendo, conta como /wake de verdade.
+  TEST_ASSERT_TRUE(l.renew(1000, 90));
+  TEST_ASSERT_EQUAL_UINT32(90000, l.left_ms(1000));
+  // Renovação: só estende.
+  TEST_ASSERT_FALSE(l.renew(31000, 90));
+  TEST_ASSERT_FALSE(l.expired(120999));
+  TEST_ASSERT_EQUAL_UINT32(1, l.left_ms(120999));
+  TEST_ASSERT_TRUE(l.expired(121000));
+  // Só uma vez.
+  TEST_ASSERT_FALSE(l.expired(130000));
+  TEST_ASSERT_FALSE(l.active());
+  TEST_ASSERT_EQUAL_UINT32(0, l.left_ms(130000));
+  // Depois de vencer, o próximo volta a ser um /wake de verdade.
+  TEST_ASSERT_TRUE(l.renew(140000, 90));
+  l.clear();
+  TEST_ASSERT_FALSE(l.expired(1000000));
+}
+
+void test_wake_lease_millis_wrap() {
+  WakeLease l;
+  uint32_t start = 0xFFFFFFFFu - 10000;  // 10 s antes do millis() voltar a 0
+  l.renew(start, 90);
+  TEST_ASSERT_FALSE(l.expired(start + 89999));  // já deu a volta
+  TEST_ASSERT_TRUE(l.expired(start + 90000));
+}
+
+void test_wake_lease_parse() {
+  uint32_t ttl = 7;
+  TEST_ASSERT_NULL(wake_lease_parse("", &ttl));
+  TEST_ASSERT_EQUAL_UINT32(0, ttl);
+  TEST_ASSERT_NULL(wake_lease_parse(nullptr, &ttl));
+  TEST_ASSERT_NULL(wake_lease_parse("ttl=90", &ttl));
+  TEST_ASSERT_EQUAL_UINT32(90, ttl);
+  TEST_ASSERT_NULL(wake_lease_parse("x=1&ttl=3600", &ttl));
+  TEST_ASSERT_EQUAL_UINT32(3600, ttl);
+  TEST_ASSERT_NULL(wake_lease_parse("ttl=0", &ttl));
+  TEST_ASSERT_EQUAL_UINT32(0, ttl);
+  TEST_ASSERT_NULL(wake_lease_parse("other=1", &ttl));
+  TEST_ASSERT_EQUAL_UINT32(0, ttl);
+  TEST_ASSERT_EQUAL_STRING("ttl", wake_lease_parse("ttl=3601", &ttl));
+  TEST_ASSERT_EQUAL_STRING("ttl", wake_lease_parse("ttl=-5", &ttl));
+  TEST_ASSERT_EQUAL_STRING("ttl", wake_lease_parse("ttl=9.5", &ttl));
+  TEST_ASSERT_EQUAL_STRING("ttl", wake_lease_parse("ttl=", &ttl));
+  TEST_ASSERT_EQUAL_STRING("ttl", wake_lease_parse("ttl=99999999999", &ttl));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_generation_boundaries);
@@ -805,5 +858,8 @@ int main() {
   RUN_TEST(test_sun_polar);
   RUN_TEST(test_sun_format_wraps);
   RUN_TEST(test_sun_parse_location);
+  RUN_TEST(test_wake_lease_renew_and_expire);
+  RUN_TEST(test_wake_lease_millis_wrap);
+  RUN_TEST(test_wake_lease_parse);
   return UNITY_END();
 }

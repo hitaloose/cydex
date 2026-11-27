@@ -152,6 +152,8 @@ pub struct PowerSnapshot {
     pub safety_until: Option<i64>,
     /// O firmware tem a rede de segurança (`/wake?ttl`). None = não sabe ainda.
     pub safety: Option<bool>,
+    /// Última renovação do prazo que deu certo (ms desde 1970).
+    pub renewed_at: Option<i64>,
 }
 
 impl PowerSnapshot {
@@ -169,6 +171,10 @@ pub struct PowerLog {
     last_event: Option<(bool, i64)>,
     pub safety_until: Option<i64>,
     pub safety: Option<bool>,
+    pub renewed_at: Option<i64>,
+    /// O último pedido (evento ou botão) foi apagar: o status não renova o
+    /// prazo, senão acenderia o CYD de novo.
+    pub want_off: bool,
 }
 
 impl PowerLog {
@@ -189,6 +195,17 @@ impl PowerLog {
         false
     }
 
+    /// Um `/wake?ttl` deu certo agora (evento ou renovação).
+    pub fn renewed(&mut self, now: i64, ttl_s: u32) {
+        self.renewed_at = Some(now);
+        self.safety_until = Some(now + ttl_s as i64 * 1000);
+    }
+
+    /// O status deve renovar o prazo agora?
+    pub fn should_renew(&self, sync: bool) -> bool {
+        sync && self.safety == Some(true) && !self.want_off && !self.busy
+    }
+
     pub fn snapshot(&self, sync: bool) -> PowerSnapshot {
         PowerSnapshot {
             sync,
@@ -196,6 +213,7 @@ impl PowerLog {
             attempts: self.attempts.iter().cloned().collect(),
             safety_until: self.safety_until,
             safety: self.safety,
+            renewed_at: self.renewed_at,
         }
     }
 }
@@ -240,6 +258,24 @@ mod tests {
         assert!(!log.join(true, 11_350));
         // Relógio voltando (NTP) não junta.
         assert!(!log.join(true, 5_000));
+    }
+
+    #[test]
+    fn renews_only_when_screen_is_wanted_on() {
+        let mut log = PowerLog::default();
+        assert!(!log.should_renew(true), "sem saber o api");
+        log.safety = Some(true);
+        assert!(log.should_renew(true));
+        assert!(!log.should_renew(false), "sem sincronia");
+        log.want_off = true;
+        assert!(!log.should_renew(true), "pediu pra apagar");
+        log.want_off = false;
+        log.busy = true;
+        assert!(!log.should_renew(true), "envio no ar");
+        log.busy = false;
+        log.renewed(1_000, 90);
+        assert_eq!(log.safety_until, Some(91_000));
+        assert_eq!(log.snapshot(true).renewed_at, Some(1_000));
     }
 
     #[test]

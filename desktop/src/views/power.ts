@@ -1,11 +1,11 @@
 // Tela e energia (D04/D04b): apagar/acender o CYD junto com o computador,
 // o estado atual e os últimos envios (src-tauri/src/power_log.rs).
-import { api, errorText, type Attempt, type PowerSnapshot, type Reason } from "../api";
+import { api, errorText, type Attempt, type PowerSnapshot, type Reason, type Status } from "../api";
 import { busy, el, svg, toast } from "../dom";
 import { lang, t, type Key } from "../i18n";
-import { header, toggle, type View } from "./common";
+import { fmtAge, header, toggle, type View } from "./common";
 
-export const EMPTY_POWER: PowerSnapshot = { sync: false, busy: false, attempts: [], safety_until: null, safety: null };
+export const EMPTY_POWER: PowerSnapshot = { sync: false, busy: false, attempts: [], safety_until: null, safety: null, renewed_at: null };
 
 function clock(ms: number, seconds = false): string {
   return new Date(ms).toLocaleTimeString(lang(), { hour: "2-digit", minute: "2-digit", second: seconds ? "2-digit" : undefined });
@@ -41,27 +41,38 @@ export function screenState(p: PowerSnapshot): ScreenState {
   return a.sleep ? "slept" : "awake";
 }
 
+/// Rede de segurança (api ≥ 5): quando o CYD apaga sozinho se o app sumir.
+function safetyText(p: PowerSnapshot): string {
+  if (!p.safety || !p.safety_until || p.safety_until <= Date.now()) return "";
+  const age = p.renewed_at ? Math.max(0, Math.round((Date.now() - p.renewed_at) / 1000)) : 0;
+  return t("power.safety", { a: fmtAge(age), t: clock(p.safety_until) });
+}
+
 /// Título e linha do card "Tela do CYD" do Início.
 export function screenSummary(p: PowerSnapshot): [string, string] {
   const a = lastSent(p);
+  const safety = safetyText(p);
+  const plus = (s: string) => (safety ? `${s} ${safety}` : s);
   switch (screenState(p)) {
     case "off":
       return [t("power.off"), t("power.off_hint")];
     case "on":
-      return [t("power.on"), t("power.on_hint")];
+      return [t("power.on"), plus(t("power.on_hint"))];
     case "failed":
-      return [t("power.failed"), t("power.failed_sub", { e: t(`trigger.${a!.trigger}`), t: clock(a!.at), r: reasonText(a!.reason, a!.ip) })];
+      return [t("power.failed"), plus(t("power.failed_sub", { e: t(`trigger.${a!.trigger}`), t: clock(a!.at), r: reasonText(a!.reason, a!.ip) }))];
     case "slept":
       return [t("power.slept"), t("power.slept_sub", { e: t(`trigger.${a!.trigger}`), t: clock(a!.at), ms: duration(a!.ms) })];
     case "awake":
-      return [t("power.awake"), t("power.awake_sub", { e: t(`trigger.${a!.trigger}`), t: clock(a!.at), ms: duration(a!.ms) })];
+      return [t("power.awake"), plus(t("power.awake_sub", { e: t(`trigger.${a!.trigger}`), t: clock(a!.at), ms: duration(a!.ms) }))];
   }
 }
 
 /// Linha curta do pé da barra lateral: [texto, classe].
 export function screenLine(p: PowerSnapshot): [string, string] {
   const a = lastSent(p);
-  switch (screenState(p)) {
+  const s = screenState(p);
+  if (p.safety === false && (s === "on" || s === "awake")) return [t("power.line_nosafety"), "warn"];
+  switch (s) {
     case "off":
       return [t("power.off"), ""];
     case "on":
@@ -120,14 +131,19 @@ export interface PowerView extends View {
   onPower(p: PowerSnapshot): void;
 }
 
-export function powerView(getPower: () => PowerSnapshot): PowerView {
+export function powerView(getPower: () => PowerSnapshot, getStatus: () => Status): PowerView {
+  let banner: HTMLElement | null = null;
   let state: HTMLElement | null = null;
   let history: HTMLElement | null = null;
   let sync: HTMLButtonElement | null = null;
 
   const draw = (p: PowerSnapshot) => {
-    if (!state || !history || !sync) return;
+    if (!state || !history || !sync || !banner) return;
     sync.setAttribute("aria-pressed", p.sync ? "true" : "false");
+    // D04b: firmware sem /wake?ttl.
+    const info = getStatus().info;
+    banner.hidden = p.safety !== false || !p.sync;
+    banner.replaceChildren(el("div", { class: "small" }, t("power.no_safety", { v: info?.version ?? "?", a: info?.api ?? "?" })));
     const s = screenState(p);
     const [title, sub] = screenSummary(p);
     const buttons = (["power.sleep", "power.wake"] as const).map((k) => {
@@ -157,6 +173,7 @@ export function powerView(getPower: () => PowerSnapshot): PowerView {
 
   return {
     onPower: draw,
+    onStatus: () => draw(getPower()),
     render(root) {
       const openLog = el("button", { class: "btn ghost sm" }, t("power.open_log"));
       openLog.onclick = () => api.openLog(false).catch((e) => toast(String(e), true));
@@ -165,6 +182,7 @@ export function powerView(getPower: () => PowerSnapshot): PowerView {
       sync = toggle(p.sync, t("power.sync"), async (on) => {
         await api.saveConfig({ ...(await api.getConfig()), power_sync: on });
       });
+      banner = el("div", { class: "banner warn", role: "note", hidden: true });
       state = el("section", { class: "card now" });
       history = el("section", { class: "card history" });
       root.replaceChildren(
@@ -175,6 +193,7 @@ export function powerView(getPower: () => PowerSnapshot): PowerView {
           el("div", { class: "grow" }, el("div", { class: "title" }, t("power.sync")), el("div", { class: "muted tiny" }, t("power.sync_hint"))),
           sync,
         ),
+        banner,
         state,
         history,
       );

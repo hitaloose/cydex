@@ -27,7 +27,7 @@ const views: Record<Section, () => View> = {
   home: () => homeView(() => status, go, () => screenSummary(power)),
   saves: () => saves,
   notices: () => noticesView(() => status),
-  power: () => powerView(() => power),
+  power: () => powerView(() => power, () => status),
   settings: () => settingsView(() => status),
   connection: () => connectionView(() => status),
   app: () => appView(renderAll),

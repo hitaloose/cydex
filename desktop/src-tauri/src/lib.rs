@@ -151,6 +151,7 @@ async fn refresh(app: &AppHandle) -> Status {
     *state.status.lock().unwrap() = st.clone();
     update_tray(app, &cfg, &st);
     let _ = app.emit("status", &st);
+    renew_safety(app, &st).await;
     st
 }
 
@@ -222,6 +223,51 @@ fn emit_power(app: &AppHandle) {
     let _ = app.emit("power", &snap);
 }
 
+/// Prazo da rede de segurança (`/wake?ttl`, api 5): 3 status de 30 s.
+const SAFETY_TTL: u32 = 90;
+
+fn wake_route(app: &AppHandle) -> String {
+    let api = app.state::<AppState>().status.lock().unwrap().info.as_ref().map_or(0, |i| i.api);
+    if api >= 5 {
+        format!("/wake?ttl={SAFETY_TTL}")
+    } else {
+        "/wake".into()
+    }
+}
+
+/// Status a cada 30 s: renova o prazo enquanto a tela do computador está
+/// acesa. Sem renovação, o CYD apaga sozinho em 90 s (computador sumiu sem
+/// avisar). Não vai pro registro (seria uma linha a cada 30 s), só pro log
+/// em debug. Com o prazo valendo no CYD, só estende (não acende nada).
+async fn renew_safety(app: &AppHandle, st: &Status) {
+    let state = app.state::<AppState>();
+    let cfg = state.cfg();
+    let api = st.info.as_ref().map_or(0, |i| i.api);
+    let ready = st.online && st.key_ok == Some(true);
+    {
+        let mut p = state.power.lock().unwrap();
+        if ready {
+            p.safety = Some(api >= 5);
+        }
+        if !ready || !p.should_renew(cfg.power_sync) {
+            return;
+        }
+    }
+    let route = format!("/wake?ttl={SAFETY_TTL}");
+    let r = {
+        let _one = state.power_send.lock().await;
+        state.api.power(&target(&cfg), &route, Duration::from_secs(3)).await
+    };
+    match r.result {
+        Ok(()) => {
+            log::debug!("power: prazo renovado ({SAFETY_TTL} s)");
+            state.power.lock().unwrap().renewed(now_ms(), SAFETY_TTL);
+        }
+        Err(reason) => log::info!("power: renovar o prazo falhou {}", reason.describe()),
+    }
+    emit_power(app);
+}
+
 /// Teto que o sono espera o `/sleep` (macOS, IOKit). Nunca atrasar o sono
 /// de verdade: depois disso dorme mesmo sem resposta.
 const SLEEP_HOLD: Duration = Duration::from_secs(5);
@@ -268,6 +314,7 @@ fn on_power(app: &AppHandle, event: PowerEvent, ack: power::Ack) {
     }
     let sleep = event.is_sleep();
     let now = now_ms();
+    state.power.lock().unwrap().want_off = sleep;
     if state.power.lock().unwrap().join(sleep, now) {
         let route = if sleep { "/sleep" } else { "/wake" };
         let a = Attempt { outcome: Outcome::Joined, ..Attempt::new(now, event, sleep, route) };
@@ -317,9 +364,13 @@ async fn run_power(app: &AppHandle, trigger: PowerEvent, sleep: bool, cfg: Confi
     // macOS: fora do App Nap até terminar (drop no fim da função).
     let _activity = power::begin_activity("CYDex: apagar/acender a tela junto com o computador");
     let seq = state.power_seq.fetch_add(1, Ordering::SeqCst) + 1;
-    let route = if sleep { "/sleep" } else { "/wake" };
+    let route = if sleep { "/sleep".to_string() } else { wake_route(app) };
+    let route = route.as_str();
     let started = std::time::Instant::now();
     let mut a = Attempt::new(now_ms(), trigger, sleep, route);
+    if trigger == PowerEvent::Manual {
+        state.power.lock().unwrap().want_off = sleep;
+    }
     a.held = plan.deadline.is_some();
     state.power.lock().unwrap().busy = true;
     emit_power(app);
@@ -393,6 +444,13 @@ async fn run_power(app: &AppHandle, trigger: PowerEvent, sleep: bool, cfg: Confi
     }
     {
         let mut p = state.power.lock().unwrap();
+        if a.outcome == Outcome::Ok {
+            if sleep {
+                p.safety_until = None;
+            } else if route.contains("ttl=") {
+                p.renewed(now_ms(), SAFETY_TTL);
+            }
+        }
         p.push(a.clone());
         if state.power_seq.load(Ordering::SeqCst) == seq {
             p.busy = false;

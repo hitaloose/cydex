@@ -14,6 +14,7 @@
 #include "data/paths.h"
 #include "hal/sd.h"
 #include "logic/Sun.h"
+#include "logic/WakeLease.h"
 #include "net/HttpRequest.h"
 #include "notify/NoticeJson.h"
 #include "saves/SaveFormat.h"
@@ -680,9 +681,10 @@ static void finish() {
 
   if (strcmp(path, "/") == 0 && is_get) {
     // api 2: /saves e /dex; api 3: /location; api 4: /status e resposta nos
-    // avisos (actions, GET /notices/<id>). Os clientes conferem antes de usar.
+    // avisos (actions, GET /notices/<id>); api 5: /wake?ttl. Os clientes
+    // conferem antes de usar.
     char body[96];
-    snprintf(body, sizeof(body), "{\"name\":\"CYDex\",\"version\":\"" CYDEX_VERSION "\",\"api\":4,\"rssi\":%d}",
+    snprintf(body, sizeof(body), "{\"name\":\"CYDex\",\"version\":\"" CYDEX_VERSION "\",\"api\":5,\"rssi\":%d}",
              (int)WiFi.RSSI());
     reply(200, "OK", body);
     return;
@@ -762,9 +764,24 @@ static void finish() {
     return;
   }
   bool sleep = path[1] == 's';
-  LOG_I(TAG, "computador %s", sleep ? "dormiu" : "acordou");
-  if (sleep) power_remote_sleep();
-  else power_remote_wake();
+  uint32_t ttl = 0;
+  if (!sleep) {
+    const char *bad = wake_lease_parse(s_req.query(), &ttl);
+    if (bad) {
+      reply_error(bad);
+      return;
+    }
+  }
+  if (sleep) {
+    LOG_I(TAG, "computador dormiu");
+    power_remote_sleep();
+  } else if (ttl) {
+    // A renovação a cada status não vai pro log (só o /wake de verdade).
+    if (power_remote_keepalive(ttl)) LOG_I(TAG, "computador acordou (prazo %u s)", (unsigned)ttl);
+  } else {
+    LOG_I(TAG, "computador acordou");
+    power_remote_wake();
+  }
   reply(204, "No Content");
 }
 

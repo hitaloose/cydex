@@ -21,6 +21,8 @@
 //   GET    /notices         [{"id","tag","title","type","age"}] (depuração).
 //   POST   /sleep, /wake    sem corpo: apaga a tela (até na Vitrine) ou acende.
 //                           O app do computador (desktop/) manda quando ele dorme/acorda. 204.
+//   POST   /wake?ttl=<s>    api 5, 1–3600 s: rede de segurança (logic/WakeLease).
+//                           Sem renovar no prazo, entra no modo do /sleep. 400 "ttl".
 //   GET    /saves           [{"name","size","mtime","format"}] (format null =
 //                           não reconhecido). Até 16.
 //   PUT    /saves/<nome>    corpo = o save, gravado em fluxo num temporário e
