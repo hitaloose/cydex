@@ -1,6 +1,6 @@
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
-import { api, type Config, type Status } from "./api";
+import { api, type PowerSnapshot, type Status } from "./api";
 import { el } from "./dom";
 import { setLang, t, type Key } from "./i18n";
 import { appView } from "./views/app";
@@ -8,7 +8,7 @@ import { signal, type View } from "./views/common";
 import { connectionView } from "./views/connection";
 import { homeView } from "./views/home";
 import { noticesView } from "./views/notices";
-import { powerView, screenSummary } from "./views/power";
+import { EMPTY_POWER, powerView, screenLine, screenState, screenSummary, type PowerView } from "./views/power";
 import { onUploadProgress, savesView } from "./views/saves";
 import { settingsView } from "./views/settings";
 
@@ -18,16 +18,16 @@ const EXTRA = ["connection", "app"] as const;
 type Section = (typeof MAIN)[number] | (typeof EXTRA)[number];
 
 let status: Status = { online: false, info: null, key_ok: null, dex: null, sun: null };
-let cfg: Config | null = null;
+let power: PowerSnapshot = EMPTY_POWER;
 let current: Section = "home";
 let view: View | null = null;
 const saves = savesView();
 
 const views: Record<Section, () => View> = {
-  home: () => homeView(() => status, go, () => screenSummary(cfg?.power_sync ?? false)),
+  home: () => homeView(() => status, go, () => screenSummary(power)),
   saves: () => saves,
   notices: () => noticesView(() => status),
-  power: () => powerView(reloadConfig),
+  power: () => powerView(() => power),
   settings: () => settingsView(() => status),
   connection: () => connectionView(() => status),
   app: () => appView(renderAll),
@@ -39,6 +39,8 @@ function navButton(s: Section) {
     { class: "nav-item", "aria-current": s === current ? "page" : "false" },
     el("span", { class: "mark" }),
     el("span", { class: "grow" }, t(`nav.${s}` as Key)),
+    // Bolinha vermelha: o último envio de energia falhou (some no próximo ok).
+    s === "power" && screenState(power) === "failed" ? el("span", { class: "alert", "aria-label": t("nav.power_failed") }) : null,
   );
   b.onclick = () => go(s);
   return b;
@@ -64,11 +66,11 @@ function renderCard() {
   } else {
     [dot, title, sub] = ["ok", t("status.online"), t("status.sub_online", { v: status.info?.version ?? "", r: signal(status.info?.rssi) })];
   }
-  const [screen] = screenSummary(cfg?.power_sync ?? false);
+  const [screen, screenCls] = screenLine(power);
   card.replaceChildren(
     el("span", { class: "row" }, el("span", { class: `dot ${dot}` }), el("span", { class: "title" }, title)),
     el("span", { class: "muted tiny" }, sub),
-    el("span", { class: "screen-line" }, screen),
+    el("span", { class: `screen-line ${screenCls}` }, screen),
   );
   card.onclick = () => go("connection");
 }
@@ -88,15 +90,11 @@ function renderAll() {
   go(current);
 }
 
-async function reloadConfig() {
-  cfg = await api.getConfig();
-  renderCard();
-}
-
 async function main() {
   setLang(await api.getLang());
   status = await api.status();
-  cfg = await api.getConfig();
+  power = await api.getPower();
+  const cfg = await api.getConfig();
   document.getElementById("nav")!.setAttribute("aria-label", t("nav.label"));
   // Sem chave ainda: começa pela Conexão (modo "Ligar ao CYDex").
   current = cfg.key ? "home" : "connection";
@@ -107,10 +105,14 @@ async function main() {
     renderCard();
     view?.onStatus?.(status);
   });
-  // A bandeja mudou a configuração (ex.: "Apagar e acender com o computador").
-  await listen("config", async () => {
-    await reloadConfig();
-    if (current === "power" || current === "home") go(current);
+  // Registro de energia novo: envio começou/terminou ou a sincronia mudou
+  // (pela janela ou pela bandeja).
+  await listen<PowerSnapshot>("power", (e) => {
+    power = e.payload;
+    renderNav();
+    renderCard();
+    if (current === "power") (view as PowerView).onPower(power);
+    else if (current === "home") view?.onStatus?.(status);
   });
   await listen<[number, number, string]>("upload-progress", (e) => onUploadProgress(...e.payload));
 

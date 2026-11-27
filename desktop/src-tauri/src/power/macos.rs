@@ -17,10 +17,10 @@ pub fn start(on: Handler) {
     // SAFETY: constantes do AppKit, válidas a execução inteira.
     let events = unsafe {
         [
-            (NSWorkspaceScreensDidSleepNotification, PowerEvent::Sleep),
-            (NSWorkspaceWillSleepNotification, PowerEvent::Sleep),
-            (NSWorkspaceScreensDidWakeNotification, PowerEvent::Wake),
-            (NSWorkspaceDidWakeNotification, PowerEvent::Wake),
+            (NSWorkspaceScreensDidSleepNotification, PowerEvent::ScreenOff),
+            (NSWorkspaceWillSleepNotification, PowerEvent::SystemSleep),
+            (NSWorkspaceScreensDidWakeNotification, PowerEvent::ScreenOn),
+            (NSWorkspaceDidWakeNotification, PowerEvent::SystemWake),
         ]
     };
     for (name, event) in events {

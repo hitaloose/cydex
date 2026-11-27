@@ -1,0 +1,223 @@
+//! Registro dos envios de energia (`/sleep`, `/wake`), pra tela "Tela e
+//! energia" e a linha da bandeja: o último estado mandado e as últimas
+//! tentativas, cada uma com o motivo da falha. Só na memória.
+
+use serde::Serialize;
+use std::collections::VecDeque;
+
+/// Quantas tentativas a tela mostra.
+pub const KEEP: usize = 8;
+
+/// O que pediu o envio.
+#[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Trigger {
+    /// Tela do computador apagou.
+    ScreenOff,
+    /// Computador vai dormir.
+    SystemSleep,
+    /// Tela do computador acendeu.
+    ScreenOn,
+    /// Computador acordou.
+    SystemWake,
+    /// Botão da janela ou da bandeja.
+    Manual,
+}
+
+impl Trigger {
+    /// Apagar (os dois de dormir) ou acender.
+    pub fn is_sleep(self) -> bool {
+        matches!(self, Trigger::ScreenOff | Trigger::SystemSleep)
+    }
+}
+
+#[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Outcome {
+    Ok,
+    Failed,
+    /// Chegou um evento mais novo antes de dar certo.
+    Superseded,
+}
+
+/// Por que falhou. A ordem é a do caminho: achar o IP, conectar, resposta.
+#[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(tag = "kind", content = "status", rename_all = "snake_case")]
+pub enum Reason {
+    /// Não achou o IP do CYD.
+    Resolve,
+    /// Achou o IP, mas a conexão não abriu.
+    Connect,
+    /// Conectou, mas a resposta não veio a tempo.
+    Timeout,
+    /// Chave errada.
+    Unauthorized,
+    /// Outra resposta de erro.
+    Http(u16),
+}
+
+impl Reason {
+    /// Texto do log em arquivo ("falhou na resolução").
+    pub fn describe(&self) -> String {
+        match self {
+            Reason::Resolve => "na resolução".into(),
+            Reason::Connect => "na conexão".into(),
+            Reason::Timeout => "esperando a resposta".into(),
+            Reason::Unauthorized => "com a chave errada".into(),
+            Reason::Http(s) => format!("com HTTP {s}"),
+        }
+    }
+}
+
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct Attempt {
+    /// Quando o evento chegou (ms desde 1970).
+    pub at: i64,
+    pub trigger: Trigger,
+    /// true = /sleep.
+    pub sleep: bool,
+    /// Rota mandada (`/sleep`, `/wake`, `/wake?ttl=90`).
+    pub route: String,
+    pub outcome: Outcome,
+    pub reason: Option<Reason>,
+    /// Tentativas feitas (0 quando juntado).
+    pub tries: u32,
+    /// Do evento até o fim (ms).
+    pub ms: u64,
+    /// IP usado e como foi achado (`cache`, `sistema`, `varredura`…).
+    pub ip: Option<String>,
+    pub via: Option<String>,
+}
+
+impl Attempt {
+    pub fn new(at: i64, trigger: Trigger, sleep: bool, route: &str) -> Self {
+        Attempt {
+            at,
+            trigger,
+            sleep,
+            route: route.into(),
+            outcome: Outcome::Failed,
+            reason: None,
+            tries: 0,
+            ms: 0,
+            ip: None,
+            via: None,
+        }
+    }
+
+    /// Linha do log em arquivo.
+    pub fn log_line(&self) -> String {
+        let what = if self.sleep { "sleep" } else { "wake" };
+        let ip = match (&self.ip, &self.via) {
+            (Some(ip), Some(via)) => format!(", IP {ip} ({via})"),
+            (Some(ip), None) => format!(", IP {ip}"),
+            _ => String::new(),
+        };
+        let head = format!("power: {what} ({:?}, {})", self.trigger, self.route);
+        match self.outcome {
+            Outcome::Ok => format!("{head} ok em {} ms, {} tentativa(s){ip}", self.ms, self.tries),
+            Outcome::Failed => format!(
+                "{head} falhou {} em {} ms, {} tentativa(s){ip}",
+                self.reason.map(|r| r.describe()).unwrap_or_default(),
+                self.ms,
+                self.tries
+            ),
+            Outcome::Superseded => format!("{head} cancelado por um evento mais novo, {} tentativa(s)", self.tries),
+        }
+    }
+}
+
+/// O que a janela recebe (comando `get_power`, evento `"power"`).
+#[derive(Serialize, Clone, Debug, Default)]
+pub struct PowerSnapshot {
+    /// "Apagar e acender junto com o computador" ligado.
+    pub sync: bool,
+    /// Envio no ar agora.
+    pub busy: bool,
+    /// Mais recente primeiro.
+    pub attempts: Vec<Attempt>,
+    /// Rede de segurança (api ≥ 5): quando o CYD apaga sozinho se ninguém
+    /// renovar (ms desde 1970). None = sem prazo.
+    pub safety_until: Option<i64>,
+    /// O firmware tem a rede de segurança (`/wake?ttl`). None = não sabe ainda.
+    pub safety: Option<bool>,
+}
+
+impl PowerSnapshot {
+    /// O último que mandou alguma coisa (ignora juntados e cancelados).
+    pub fn last_sent(&self) -> Option<&Attempt> {
+        self.attempts.iter().find(|a| matches!(a.outcome, Outcome::Ok | Outcome::Failed))
+    }
+}
+
+#[derive(Default)]
+pub struct PowerLog {
+    attempts: VecDeque<Attempt>,
+    pub busy: bool,
+    pub safety_until: Option<i64>,
+    pub safety: Option<bool>,
+}
+
+impl PowerLog {
+    pub fn push(&mut self, a: Attempt) {
+        self.attempts.push_front(a);
+        self.attempts.truncate(KEEP);
+    }
+
+    pub fn snapshot(&self, sync: bool) -> PowerSnapshot {
+        PowerSnapshot {
+            sync,
+            busy: self.busy,
+            attempts: self.attempts.iter().cloned().collect(),
+            safety_until: self.safety_until,
+            safety: self.safety,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn att(outcome: Outcome) -> Attempt {
+        Attempt { outcome, ..Attempt::new(0, Trigger::ScreenOff, true, "/sleep") }
+    }
+
+    #[test]
+    fn keeps_newest_first_and_bounded() {
+        let mut log = PowerLog::default();
+        for i in 0..(KEEP as i64 + 3) {
+            log.push(Attempt { at: i, ..att(Outcome::Ok) });
+        }
+        let snap = log.snapshot(true);
+        assert_eq!(snap.attempts.len(), KEEP);
+        assert_eq!(snap.attempts[0].at, KEEP as i64 + 2);
+    }
+
+    #[test]
+    fn last_sent_skips_superseded() {
+        let mut log = PowerLog::default();
+        log.push(Attempt { reason: Some(Reason::Connect), ..att(Outcome::Failed) });
+        log.push(att(Outcome::Superseded));
+        assert_eq!(log.snapshot(true).last_sent().unwrap().outcome, Outcome::Failed);
+    }
+
+    #[test]
+    fn log_line_names_the_failure_stage() {
+        let a = Attempt { reason: Some(Reason::Resolve), tries: 2, ms: 900, ..att(Outcome::Failed) };
+        assert!(a.log_line().contains("falhou na resolução"), "{}", a.log_line());
+        let b = Attempt {
+            reason: Some(Reason::Connect),
+            ip: Some("192.168.0.42".into()),
+            via: Some("cache".into()),
+            ..att(Outcome::Failed)
+        };
+        assert!(b.log_line().contains("falhou na conexão") && b.log_line().contains("192.168.0.42 (cache)"));
+    }
+
+    #[test]
+    fn reason_serializes_for_the_window() {
+        assert_eq!(serde_json::to_string(&Reason::Http(500)).unwrap(), r#"{"kind":"http","status":500}"#);
+        assert_eq!(serde_json::to_string(&Reason::Resolve).unwrap(), r#"{"kind":"resolve"}"#);
+    }
+}

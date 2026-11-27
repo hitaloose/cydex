@@ -2,13 +2,9 @@
 
 use std::sync::Arc;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PowerEvent {
-    /// Tela apagou ou o computador vai dormir.
-    Sleep,
-    /// Tela acendeu ou o computador acordou.
-    Wake,
-}
+/// Tela apagou/acendeu ou o computador vai dormir/acordou. O mesmo tipo do
+/// registro (`power_log`), que mostra qual dos quatro foi.
+pub use crate::power_log::Trigger as PowerEvent;
 
 pub type Handler = Arc<dyn Fn(PowerEvent) + Send + Sync + 'static>;
 

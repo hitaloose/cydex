@@ -37,13 +37,20 @@ pub fn forget(host: &str) {
 }
 
 pub async fn resolve(host: &str) -> io::Result<Ipv4Addr> {
+    resolve_how(host).await.map(|(ip, _)| ip)
+}
+
+/// Como `resolve`, dizendo de onde veio o IP: `ip` (o host já é um IP),
+/// `cache` ou o caminho que achou (`mdns-sd`, `sistema`, `dscacheutil`,
+/// `varredura`). Vai pro registro de energia.
+pub async fn resolve_how(host: &str) -> io::Result<(Ipv4Addr, &'static str)> {
     if let Ok(ip) = host.parse::<Ipv4Addr>() {
-        return Ok(ip);
+        return Ok((ip, "ip"));
     }
     let k = key(host);
     if let Some((ip, at)) = cache().lock().unwrap().get(&k) {
         if at.elapsed() < TTL {
-            return Ok(*ip);
+            return Ok((*ip, "cache"));
         }
     }
     let local = k.ends_with(".local");
@@ -78,7 +85,7 @@ pub async fn resolve(host: &str) -> io::Result<Ipv4Addr> {
         Some((ip, how)) => {
             log::info!("{k} -> {ip} ({how})");
             cache().lock().unwrap().insert(k, (ip, Instant::now()));
-            Ok(ip)
+            Ok((ip, how))
         }
         None => {
             log::warn!("{k}: não achei o CYDex");

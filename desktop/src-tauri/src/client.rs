@@ -1,11 +1,12 @@
 //! Cliente da API HTTP do CYDex (ver `src/net/notice_server.h` no firmware).
 
 use crate::dex::{self, DexSummary};
+use crate::power_log::Reason;
 use crate::save_name;
 use reqwest::{Method, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::net::{IpAddr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -135,6 +136,13 @@ impl reqwest::dns::Resolve for Ipv4Resolver {
             Ok(Box::new(std::iter::once(SocketAddr::new(IpAddr::V4(ip), 80))) as reqwest::dns::Addrs)
         })
     }
+}
+
+/// Uma tentativa de `power`: o IP usado (se achou) e o resultado.
+pub struct PowerTry {
+    pub ip: Option<Ipv4Addr>,
+    pub via: Option<&'static str>,
+    pub result: std::result::Result<(), Reason>,
 }
 
 #[derive(Clone)]
@@ -316,12 +324,29 @@ impl Api {
         self.send(self.request(t, Method::DELETE, "/location")).await.map(|_| ())
     }
 
-    /// `POST /sleep` ou `/wake`, uma tentativa curta. As repetições ficam em
-    /// quem chama (lib.rs), que desiste se chegar um evento mais novo.
-    pub async fn power(&self, t: &Target<'_>, sleep: bool) -> Result<()> {
-        let path = if sleep { "/sleep" } else { "/wake" };
-        let req = self.request(t, Method::POST, path).timeout(Duration::from_secs(3));
-        self.send(req).await.map(|_| ())
+    /// `POST /sleep` ou `/wake` (`route`), uma tentativa curta. Acha o IP
+    /// antes, por fora do reqwest, pra separar no registro a falha de achar o
+    /// IP da de conectar. As repetições ficam em quem chama (lib.rs).
+    pub async fn power(&self, t: &Target<'_>, route: &str, timeout: Duration) -> PowerTry {
+        let (ip, via) = match crate::locate::resolve_how(t.host).await {
+            Ok(found) => found,
+            Err(_) => return PowerTry { ip: None, via: None, result: Err(Reason::Resolve) },
+        };
+        let mut req = self.http.post(format!("http://{ip}{route}")).timeout(timeout);
+        if !t.key.is_empty() {
+            req = req.bearer_auth(t.key);
+        }
+        let result = match req.send().await {
+            Ok(resp) if resp.status().is_success() => Ok(()),
+            Ok(resp) if resp.status() == StatusCode::UNAUTHORIZED => Err(Reason::Unauthorized),
+            Ok(resp) => Err(Reason::Http(resp.status().as_u16())),
+            Err(e) => {
+                // Conexão que não abriu: o DHCP pode ter trocado o IP.
+                crate::locate::forget(t.host);
+                Err(if e.is_connect() { Reason::Connect } else { Reason::Timeout })
+            }
+        };
+        PowerTry { ip: Some(ip), via: Some(via), result }
     }
 }
 
@@ -401,6 +426,6 @@ mod live {
         assert!(api.notices(&t).await.unwrap().iter().any(|n| n.id == id));
         api.close_notice(&t, Some(&id)).await.unwrap();
         assert!(!api.notices(&t).await.unwrap().iter().any(|n| n.id == id));
-        api.power(&t, false).await.expect("wake");
+        assert!(api.power(&t, "/wake", Duration::from_secs(3)).await.result.is_ok(), "wake");
     }
 }

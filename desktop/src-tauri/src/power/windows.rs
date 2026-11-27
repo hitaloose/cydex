@@ -25,8 +25,8 @@ fn wide(s: &str) -> Vec<u16> {
 unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     if msg == WM_POWERBROADCAST {
         let event = match wparam as u32 {
-            PBT_APMSUSPEND => Some(PowerEvent::Sleep),
-            PBT_APMRESUMEAUTOMATIC => Some(PowerEvent::Wake),
+            PBT_APMSUSPEND => Some(PowerEvent::SystemSleep),
+            PBT_APMRESUMEAUTOMATIC => Some(PowerEvent::SystemWake),
             PBT_POWERSETTINGCHANGE if lparam != 0 => {
                 let setting = &*(lparam as *const POWERBROADCAST_SETTING);
                 let same = setting.PowerSetting.data1 == GUID_CONSOLE_DISPLAY_STATE.data1
@@ -35,8 +35,8 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
                     && setting.PowerSetting.data4 == GUID_CONSOLE_DISPLAY_STATE.data4;
                 // 0 = desligado, 1 = ligado, 2 = escurecido (ignora).
                 match (same, setting.Data[0]) {
-                    (true, 0) => Some(PowerEvent::Sleep),
-                    (true, 1) => Some(PowerEvent::Wake),
+                    (true, 0) => Some(PowerEvent::ScreenOff),
+                    (true, 1) => Some(PowerEvent::ScreenOn),
                     _ => None,
                 }
             }

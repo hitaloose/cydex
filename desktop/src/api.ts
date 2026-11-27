@@ -96,6 +96,34 @@ export interface IndicatorInfo {
   age: number;
 }
 
+export type Trigger = "screen_off" | "system_sleep" | "screen_on" | "system_wake" | "manual";
+export type Outcome = "ok" | "failed" | "superseded";
+export type Reason = { kind: "resolve" | "connect" | "timeout" | "unauthorized" } | { kind: "http"; status: number };
+
+/** Um envio de /sleep ou /wake (src-tauri/src/power_log.rs). */
+export interface Attempt {
+  at: number;
+  trigger: Trigger;
+  sleep: boolean;
+  route: string;
+  outcome: Outcome;
+  reason: Reason | null;
+  tries: number;
+  ms: number;
+  ip: string | null;
+  via: string | null;
+}
+
+export interface PowerSnapshot {
+  sync: boolean;
+  busy: boolean;
+  /** Mais recente primeiro. */
+  attempts: Attempt[];
+  /** Rede de segurança (api ≥ 5): quando o CYD apaga sozinho, ms. */
+  safety_until: number | null;
+  safety: boolean | null;
+}
+
 export interface Found {
   host: string;
   ip: string;
@@ -139,6 +167,7 @@ export const api = {
   openLog: (reveal: boolean) => invoke<void>("open_log", { reveal }),
   logPath: () => invoke<string>("log_path"),
   power: (sleep: boolean) => invoke<void>("power_now", { sleep }),
+  getPower: () => invoke<PowerSnapshot>("get_power"),
   searchPlaces: (query: string) => invoke<Location[]>("search_places", { query }),
   setLocation: (location: Location) => invoke<Status>("set_location", { location }),
   clearLocation: () => invoke<Status>("clear_location"),

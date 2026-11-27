@@ -12,6 +12,7 @@ mod discovery;
 mod geocode;
 mod locate;
 mod power;
+mod power_log;
 mod save_name;
 mod tray_text;
 
@@ -19,6 +20,7 @@ use client::{Api, ApiError, IndicatorInfo, Info, NoticeInfo, ReloadResult, SaveI
 use config::{Config, Location};
 use dex::DexSummary;
 use power::PowerEvent;
+use power_log::{Attempt, Outcome, PowerLog, PowerSnapshot, Reason};
 use serde::Serialize;
 use serde_json::Value;
 use std::path::PathBuf;
@@ -50,6 +52,8 @@ pub struct Status {
 
 struct TrayItems {
     status: MenuItem<Wry>,
+    /// Linha da tela do CYD (só leitura).
+    screen: MenuItem<Wry>,
     sleep: MenuItem<Wry>,
     wake: MenuItem<Wry>,
     sync: CheckMenuItem<Wry>,
@@ -65,6 +69,8 @@ struct AppState {
     /// Cada evento de energia incrementa: a repetição do "acordar" para se
     /// chegar um evento mais novo (dormiu de novo no meio).
     power_seq: AtomicU64,
+    /// Últimos envios de energia (tela "Tela e energia").
+    power: Mutex<PowerLog>,
     tray: Mutex<Option<TrayItems>>,
 }
 
@@ -165,6 +171,7 @@ fn update_tray(app: &AppHandle, cfg: &Config, st: &Status) {
         let _ = items.sync.set_checked(cfg.power_sync);
         let _ = items.open.set_text(tr("open"));
         let _ = items.quit.set_text(tr("quit"));
+        let _ = items.screen.set_text(screen_line(&lang, &state.power.lock().unwrap().snapshot(cfg.power_sync)));
         let ready = st.online && st.key_ok == Some(true);
         let _ = items.sleep.set_enabled(ready);
         let _ = items.wake.set_enabled(ready);
@@ -176,42 +183,114 @@ fn update_tray(app: &AppHandle, cfg: &Config, st: &Status) {
 
 // ---------- energia ----------
 
+fn now_ms() -> i64 {
+    chrono::Utc::now().timestamp_millis()
+}
+
+/// "HH:MM" no fuso do computador.
+fn clock(ms: i64) -> String {
+    use chrono::TimeZone;
+    chrono::Local.timestamp_millis_opt(ms).single().map(|t| t.format("%H:%M").to_string()).unwrap_or_default()
+}
+
+/// Linha da tela no menu da bandeja.
+fn screen_line(lang: &str, snap: &PowerSnapshot) -> String {
+    let tr = |k| tray_text::get(lang, k);
+    if !snap.sync {
+        return tr("screen_off").into();
+    }
+    match snap.last_sent() {
+        None => tr("screen_on").into(),
+        Some(a) if a.outcome == Outcome::Failed => tr("screen_failed").replace("{t}", &clock(a.at)),
+        Some(a) if a.sleep => tr("screen_slept").replace("{t}", &clock(a.at)),
+        Some(a) => tr("screen_ok").replace("{t}", &clock(a.at)),
+    }
+}
+
+/// Manda o registro pra janela e atualiza a linha da bandeja.
+fn emit_power(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let cfg = state.cfg();
+    let snap = state.power.lock().unwrap().snapshot(cfg.power_sync);
+    if let Some(items) = state.tray.lock().unwrap().as_ref() {
+        let _ = items.screen.set_text(screen_line(&lang_of(&cfg), &snap));
+    }
+    let _ = app.emit("power", &snap);
+}
+
 fn on_power(app: &AppHandle, event: PowerEvent) {
     let state = app.state::<AppState>();
     let cfg = state.cfg();
     if !cfg.power_sync || !cfg.is_paired() {
+        log::debug!("power: {event:?} ignorado (sem sincronia ou sem chave)");
         return;
     }
-    send_power(app.clone(), event == PowerEvent::Sleep, cfg);
+    send_power(app.clone(), event, event.is_sleep(), cfg);
 }
 
-fn send_power(app: AppHandle, sleep: bool, cfg: Config) {
-    let seq = app.state::<AppState>().power_seq.fetch_add(1, Ordering::SeqCst) + 1;
+/// Dispara o envio em segundo plano (eventos do sistema e bandeja).
+fn send_power(app: AppHandle, trigger: PowerEvent, sleep: bool, cfg: Config) {
     tauri::async_runtime::spawn(async move {
-        let state = app.state::<AppState>();
         // Dormindo: o computador não espera, uma tentativa. Acordando: o
         // Wi-Fi e o mDNS levam alguns segundos.
         let tries = if sleep { 1 } else { 10 };
-        for attempt in 0..tries {
-            if state.power_seq.load(Ordering::SeqCst) != seq {
-                return;
+        run_power(&app, trigger, sleep, cfg, tries).await;
+    });
+}
+
+/// Manda `/sleep` ou `/wake`, repetindo até `tries` vezes, e registra o
+/// resultado. Para se chegar um evento mais novo (dormiu de novo no meio).
+async fn run_power(app: &AppHandle, trigger: PowerEvent, sleep: bool, cfg: Config, tries: u32) -> Attempt {
+    let state = app.state::<AppState>();
+    let seq = state.power_seq.fetch_add(1, Ordering::SeqCst) + 1;
+    let route = if sleep { "/sleep" } else { "/wake" };
+    let started = std::time::Instant::now();
+    let mut a = Attempt::new(now_ms(), trigger, sleep, route);
+    state.power.lock().unwrap().busy = true;
+    emit_power(app);
+    for attempt in 0..tries {
+        if state.power_seq.load(Ordering::SeqCst) != seq {
+            a.outcome = Outcome::Superseded;
+            break;
+        }
+        if attempt > 0 {
+            tokio::time::sleep(Duration::from_secs(2)).await;
+        }
+        a.tries += 1;
+        let r = state.api.power(&target(&cfg), route, Duration::from_secs(3)).await;
+        a.ip = r.ip.map(|ip| ip.to_string());
+        a.via = r.via.map(String::from);
+        match r.result {
+            Ok(()) => {
+                a.outcome = Outcome::Ok;
+                a.reason = None;
+                break;
             }
-            if attempt > 0 {
-                tokio::time::sleep(Duration::from_secs(2)).await;
-            }
-            match state.api.power(&target(&cfg), sleep).await {
-                Ok(()) => {
-                    log::info!("power: {}", if sleep { "sleep" } else { "wake" });
-                    return;
-                }
-                Err(ApiError::Offline) => continue,
-                Err(e) => {
-                    log::info!("power: {e}");
-                    return;
+            Err(reason) => {
+                a.outcome = Outcome::Failed;
+                a.reason = Some(reason);
+                // Chave errada ou erro HTTP: repetir não muda nada.
+                if matches!(reason, Reason::Unauthorized | Reason::Http(_)) {
+                    break;
                 }
             }
         }
-    });
+    }
+    a.ms = started.elapsed().as_millis() as u64;
+    if a.outcome == Outcome::Failed {
+        log::warn!("{}", a.log_line());
+    } else {
+        log::info!("{}", a.log_line());
+    }
+    {
+        let mut p = state.power.lock().unwrap();
+        p.push(a.clone());
+        if state.power_seq.load(Ordering::SeqCst) == seq {
+            p.busy = false;
+        }
+    }
+    emit_power(app);
+    a
 }
 
 // ---------- comandos da interface ----------
@@ -238,6 +317,7 @@ async fn save_config(app: AppHandle, cfg: Config) -> CmdResult<Config> {
         config::save(&state.cfg_path, &cfg).map_err(|e| ApiError::Io(e.to_string()))?;
         *state.cfg.lock().unwrap() = cfg.clone();
     }
+    emit_power(&app);
     refresh(&app).await;
     Ok(cfg)
 }
@@ -444,10 +524,23 @@ fn open_log(app: AppHandle, reveal: bool) -> CmdResult<()> {
     })
 }
 
+/// Botões "Apagar agora"/"Acender agora" da janela: uma tentativa, e o erro
+/// volta pra janela.
 #[tauri::command]
-async fn power_now(state: State<'_, AppState>, sleep: bool) -> CmdResult<()> {
-    let cfg = state.cfg();
-    state.api.power(&target(&cfg), sleep).await
+async fn power_now(app: AppHandle, sleep: bool) -> CmdResult<()> {
+    let cfg = app.state::<AppState>().cfg();
+    let a = run_power(&app, PowerEvent::Manual, sleep, cfg, 1).await;
+    match a.reason {
+        None => Ok(()),
+        Some(Reason::Unauthorized) => Err(ApiError::Unauthorized),
+        Some(Reason::Http(s)) => Err(ApiError::Http(s)),
+        Some(_) => Err(ApiError::Offline),
+    }
+}
+
+#[tauri::command]
+fn get_power(state: State<AppState>) -> PowerSnapshot {
+    state.power.lock().unwrap().snapshot(state.cfg().power_sync)
 }
 
 #[tauri::command]
@@ -500,6 +593,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let tr = |k| tray_text::get(&lang, k);
     let items = TrayItems {
         status: MenuItem::with_id(app, "status", tr("online"), false, None::<&str>)?,
+        screen: MenuItem::with_id(app, "screen", tr("screen_on"), false, None::<&str>)?,
         sleep: MenuItem::with_id(app, "sleep", tr("sleep_now"), false, None::<&str>)?,
         wake: MenuItem::with_id(app, "wake", tr("wake_now"), false, None::<&str>)?,
         sync: CheckMenuItem::with_id(app, "sync", tr("sync"), true, cfg.power_sync, None::<&str>)?,
@@ -510,7 +604,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let sep2 = PredefinedMenuItem::separator(app)?;
     let menu = Menu::with_items(
         app,
-        &[&items.status, &sep1, &items.sleep, &items.wake, &items.sync, &sep2, &items.open, &items.quit],
+        &[&items.status, &items.screen, &sep1, &items.sleep, &items.wake, &items.sync, &sep2, &items.open, &items.quit],
     )?;
 
     // macOS: ícone "template" (o sistema pinta conforme o tema da barra).
@@ -531,15 +625,16 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             "quit" => app.exit(0),
             "sleep" | "wake" => {
                 let cfg = app.state::<AppState>().cfg();
-                send_power(app.clone(), event.id.as_ref() == "sleep", cfg);
+                let sleep = event.id.as_ref() == "sleep";
+                send_power(app.clone(), PowerEvent::Manual, sleep, cfg);
             }
             "sync" => {
                 let app = app.clone();
                 tauri::async_runtime::spawn(async move {
                     let mut cfg = app.state::<AppState>().cfg();
                     cfg.power_sync = !cfg.power_sync;
+                    // save_config avisa a janela (evento "power").
                     let _ = save_config(app.clone(), cfg).await;
-                    let _ = app.emit("config", ());
                 });
             }
             _ => {}
@@ -582,6 +677,7 @@ pub fn run() {
                 api: Api::new(),
                 status: Mutex::new(Status::default()),
                 power_seq: AtomicU64::new(0),
+                power: Mutex::new(PowerLog::default()),
                 tray: Mutex::new(None),
             });
 
@@ -636,6 +732,7 @@ pub fn run() {
             log_path,
             open_log,
             power_now,
+            get_power,
             search_places,
             set_location,
             clear_location,
