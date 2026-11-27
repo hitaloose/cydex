@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
-    <header class="top">
+    <nav class="side" id="nav">
       <div class="brand">
         <svg class="logo" viewBox="0 0 28 28" aria-hidden="true">
           <rect x="2" y="3" width="24" height="6" rx="2" fill="var(--accent)" />
@@ -16,9 +16,9 @@
         </svg>
         <span>CYDex</span>
       </div>
-      <nav class="tabs" id="tabs"></nav>
-      <div class="pill" id="status-pill"></div>
-    </header>
+      <div class="nav-items" id="nav-items"></div>
+      <button class="cyd-card" id="cyd-card"></button>
+    </nav>
     <main id="view"></main>
     <div class="toast" id="toast" hidden></div>
     <script type="module" src="/src/main.ts"></script>

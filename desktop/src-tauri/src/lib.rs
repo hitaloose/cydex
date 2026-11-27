@@ -15,7 +15,7 @@ mod power;
 mod save_name;
 mod tray_text;
 
-use client::{Api, ApiError, Info, NoticeInfo, ReloadResult, SaveInfo, SunInfo, Target};
+use client::{Api, ApiError, IndicatorInfo, Info, NoticeInfo, ReloadResult, SaveInfo, SunInfo, Target};
 use config::{Config, Location};
 use dex::DexSummary;
 use power::PowerEvent;
@@ -387,6 +387,64 @@ async fn close_notice(state: State<'_, AppState>, id: Option<String>) -> CmdResu
 }
 
 #[tauri::command]
+async fn list_indicators(state: State<'_, AppState>) -> CmdResult<Vec<IndicatorInfo>> {
+    let cfg = state.cfg();
+    state.api.indicators(&target(&cfg)).await
+}
+
+/// Arquivo do log (o `tauri-plugin-log` grava em `app_log_dir`).
+fn log_file(app: &AppHandle) -> CmdResult<PathBuf> {
+    app.path().app_log_dir().map(|d| d.join("CYDex.log")).map_err(|e| ApiError::Io(e.to_string()))
+}
+
+#[tauri::command]
+fn log_path(app: AppHandle) -> CmdResult<String> {
+    let path = log_file(&app)?;
+    // Mostra com ~ no lugar da pasta do usuário.
+    let shown = match dirs::home_dir().and_then(|h| path.strip_prefix(&h).ok().map(|p| p.to_path_buf())) {
+        Some(rel) => format!("~/{}", rel.display()),
+        None => path.display().to_string(),
+    };
+    Ok(shown)
+}
+
+/// Abre o log no app padrão ou, com `reveal`, mostra o arquivo na pasta.
+#[tauri::command]
+fn open_log(app: AppHandle, reveal: bool) -> CmdResult<()> {
+    use std::process::Command;
+    let path = log_file(&app)?;
+    #[cfg(target_os = "macos")]
+    let mut cmd = {
+        let mut c = Command::new("/usr/bin/open");
+        if reveal {
+            c.arg("-R");
+        }
+        c.arg(&path);
+        c
+    };
+    #[cfg(windows)]
+    let mut cmd = {
+        let mut c = Command::new("explorer");
+        if reveal {
+            c.arg(format!("/select,{}", path.display()));
+        } else {
+            c.arg(&path);
+        }
+        c
+    };
+    #[cfg(not(any(target_os = "macos", windows)))]
+    let mut cmd = {
+        let mut c = Command::new("xdg-open");
+        c.arg(if reveal { path.parent().unwrap_or(&path) } else { &path });
+        c
+    };
+    cmd.spawn().map(|_| ()).map_err(|e| {
+        log::warn!("abrir o log: {e}");
+        ApiError::Io(e.to_string())
+    })
+}
+
+#[tauri::command]
 async fn power_now(state: State<'_, AppState>, sleep: bool) -> CmdResult<()> {
     let cfg = state.cfg();
     state.api.power(&target(&cfg), sleep).await
@@ -574,6 +632,9 @@ pub fn run() {
             list_notices,
             send_notice,
             close_notice,
+            list_indicators,
+            log_path,
+            open_log,
             power_now,
             search_places,
             set_location,

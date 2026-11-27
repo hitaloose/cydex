@@ -16,7 +16,7 @@
         "title": "CYDex",
         "width": 760,
         "height": 560,
-        "minWidth": 640,
+        "minWidth": 720,
         "minHeight": 480,
         "visible": false,
         "dragDropEnabled": true,

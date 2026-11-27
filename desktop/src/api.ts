@@ -89,6 +89,13 @@ export interface NoticeInfo {
   age: number;
 }
 
+/** `GET /status` (api 4): indicadores do rodapé da Vitrine. */
+export interface IndicatorInfo {
+  id: string;
+  text: string;
+  age: number;
+}
+
 export interface Found {
   host: string;
   ip: string;
@@ -128,6 +135,9 @@ export const api = {
   notices: () => invoke<NoticeInfo[]>("list_notices"),
   sendNotice: (body: Record<string, unknown>) => invoke<string>("send_notice", { body }),
   closeNotice: (id: string | null) => invoke<void>("close_notice", { id }),
+  indicators: () => invoke<IndicatorInfo[]>("list_indicators"),
+  openLog: (reveal: boolean) => invoke<void>("open_log", { reveal }),
+  logPath: () => invoke<string>("log_path"),
   power: (sleep: boolean) => invoke<void>("power_now", { sleep }),
   searchPlaces: (query: string) => invoke<Location[]>("search_places", { query }),
   setLocation: (location: Location) => invoke<Status>("set_location", { location }),

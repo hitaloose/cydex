@@ -79,6 +79,14 @@ pub struct NoticeInfo {
     pub age: u64,
 }
 
+/// `GET /status` (api 4): um indicador do rodapé da Vitrine.
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct IndicatorInfo {
+    pub id: String,
+    pub text: String,
+    pub age: u64,
+}
+
 /// `GET /location` (api 3). Sem localidade no CYD, tudo None.
 #[derive(Deserialize, Serialize, Debug, Clone, Default, PartialEq)]
 pub struct SunInfo {
@@ -287,6 +295,10 @@ impl Api {
             None => "/notices".into(),
         };
         self.send(self.request(t, Method::DELETE, &path)).await.map(|_| ())
+    }
+
+    pub async fn indicators(&self, t: &Target<'_>) -> Result<Vec<IndicatorInfo>> {
+        self.json(self.request(t, Method::GET, "/status")).await
     }
 
     pub async fn location(&self, t: &Target<'_>) -> Result<SunInfo> {
