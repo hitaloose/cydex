@@ -16,6 +16,8 @@ void power_use_normal_level();
 bool power_is_night();
 // A localidade mudou (PUT/DELETE /location): reavalia dia/noite na hora.
 void power_location_changed();
+// Os brilhos dos Ajustes mudaram (PUT /settings): reaplica o da hora.
+void power_settings_changed();
 // Acende a tela (se apagada) e zera o tempo sem toque. Avisos do Claude Code.
 void power_wake();
 // O computador dormiu (POST /sleep): apaga a tela, até na Vitrine, mas não

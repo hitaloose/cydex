@@ -107,6 +107,11 @@ bool power_is_night() { return s_night; }
 
 void power_location_changed() { sun_update(true); }
 
+void power_settings_changed() {
+  // Durante a prévia de um slider (Fixed) não mexe: ao soltar ele reaplica.
+  if (s_mode != Mode::Fixed) apply_mode();
+}
+
 static void remote_off() {
   s_asleep = true;
   backlight_set(0);

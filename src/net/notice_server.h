@@ -23,6 +23,10 @@
 //                           O app do computador (desktop/) manda quando ele dorme/acorda. 204.
 //   POST   /wake?ttl=<s>    api 5, 1–3600 s: rede de segurança (logic/WakeLease).
 //                           Sem renovar no prazo, entra no modo do /sleep. 400 "ttl".
+//   GET    /settings        api 6: {"bright","bright_n","off_min","sound","grid","sc_int",
+//                           "sc_rand","sc_src","sc_boot","lang","off_opts","sc_int_opts","langs"}.
+//   PUT    /settings?<campo>=<valor>[&…]  muda os Ajustes (logic/SettingsPatch), 204;
+//                           400 {"error":"<campo>"|"query"}. A tela aberta remonta se mostra o que mudou.
 //   GET    /saves           [{"name","size","mtime","format"}] (format null =
 //                           não reconhecido). Até 16.
 //   PUT    /saves/<nome>    corpo = o save, gravado em fluxo num temporário e

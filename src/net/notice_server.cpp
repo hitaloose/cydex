@@ -13,6 +13,8 @@
 #include "data/StatusStore.h"
 #include "data/paths.h"
 #include "hal/sd.h"
+#include "logic/SettingsPatch.h"
+#include "logic/Showcase.h"
 #include "logic/Sun.h"
 #include "logic/WakeLease.h"
 #include "net/HttpRequest.h"
@@ -22,6 +24,7 @@
 #include "ui/catalog.h"
 #include "ui/nav.h"
 #include "ui/power.h"
+#include "ui/settings_remote.h"
 #include "util/log.h"
 #include "version.h"
 
@@ -204,7 +207,8 @@ static bool needs_key(const char *path) {
   const char *id;
   return notices_path(path, &id) || status_path(path, &id) || saves_path(path, &id) ||
          strcmp(path, "/dex") == 0 ||
-         strcmp(path, "/location") == 0 || strcmp(path, "/sleep") == 0 ||
+         strcmp(path, "/location") == 0 || strcmp(path, "/settings") == 0 ||
+         strcmp(path, "/sleep") == 0 ||
          strcmp(path, "/wake") == 0;
 }
 
@@ -632,6 +636,59 @@ static void get_location() {
   reply(200, "OK", body);
 }
 
+// GET /settings: os Ajustes com os nomes do PUT (logic/SettingsPatch.h) e as
+// opções que a UI aceita, pro app não ter que saber de cor.
+static void get_settings() {
+  const AppSettings &st = settings();
+  char body[384];
+  size_t n = (size_t)snprintf(
+      body, sizeof(body),
+      "{\"bright\":%u,\"bright_n\":%u,\"off_min\":%u,\"sound\":%s,\"grid\":%s,"
+      "\"sc_int\":%u,\"sc_rand\":%s,\"sc_src\":%u,\"sc_boot\":%s,\"lang\":\"%s\",\"off_opts\":[",
+      st.brightness, st.brightness_night, st.screen_off_min, st.sound ? "true" : "false",
+      st.open_grid ? "true" : "false", st.showcase_interval_s, st.showcase_random ? "true" : "false",
+      st.showcase_source, st.showcase_on_boot ? "true" : "false", i18n_lang_code(i18n_lang()));
+  for (uint8_t i = 0; i < SCREEN_OFF_COUNT && n < sizeof(body); i++)
+    n += (size_t)snprintf(body + n, sizeof(body) - n, "%s%u", i ? "," : "", SCREEN_OFF_MIN[i]);
+  n += (size_t)snprintf(body + n, sizeof(body) - n, "],\"sc_int_opts\":[");
+  for (uint8_t i = 0; i < SHOWCASE_INTERVAL_COUNT && n < sizeof(body); i++)
+    n += (size_t)snprintf(body + n, sizeof(body) - n, "%s%u", i ? "," : "", SHOWCASE_INTERVALS_S[i]);
+  n += (size_t)snprintf(body + n, sizeof(body) - n, "],\"langs\":[");
+  for (int i = 0; i < LANG_COUNT && n < sizeof(body); i++)
+    n += (size_t)snprintf(body + n, sizeof(body) - n, "%s{\"code\":\"%s\",\"name\":\"%s\"}", i ? "," : "",
+                          i18n_lang_code((LangId)i), i18n_lang_name((LangId)i));
+  if (n < sizeof(body)) snprintf(body + n, sizeof(body) - n, "]}");
+  if (n + 2 >= sizeof(body)) {
+    LOG_E(TAG, "GET /settings: corpo não coube");
+    reply(500, "Internal Server Error");
+    return;
+  }
+  reply(200, "OK", body);
+}
+
+// PUT /settings?<campo>=<valor>[&…] (cabe nos 47 B da query; o app manda um
+// campo por vez). Tudo ou nada.
+static void settings_route(bool is_get, bool is_put) {
+  if (is_get) {
+    get_settings();
+    return;
+  }
+  if (!is_put) {
+    reply(405, "Method Not Allowed");
+    return;
+  }
+  SettingsPatch patch;
+  const char *bad = settings_patch_parse(s_req.query(), &patch);
+  if (bad) {
+    reply_error(bad);
+    return;
+  }
+  LOG_I(TAG, "ajustes: %s", s_req.query());
+  // Responde antes de remontar a tela: o nav_reload leva um tempo.
+  reply(204, "No Content");
+  settings_remote_apply(patch);
+}
+
 static void location_route(bool is_get, bool is_delete) {
   bool is_put = strcmp(s_req.method(), "PUT") == 0;
   if (is_get) {
@@ -681,10 +738,10 @@ static void finish() {
 
   if (strcmp(path, "/") == 0 && is_get) {
     // api 2: /saves e /dex; api 3: /location; api 4: /status e resposta nos
-    // avisos (actions, GET /notices/<id>); api 5: /wake?ttl. Os clientes
-    // conferem antes de usar.
+    // avisos (actions, GET /notices/<id>); api 5: /wake?ttl; api 6: /settings.
+    // Os clientes conferem antes de usar.
     char body[96];
-    snprintf(body, sizeof(body), "{\"name\":\"CYDex\",\"version\":\"" CYDEX_VERSION "\",\"api\":5,\"rssi\":%d}",
+    snprintf(body, sizeof(body), "{\"name\":\"CYDex\",\"version\":\"" CYDEX_VERSION "\",\"api\":6,\"rssi\":%d}",
              (int)WiFi.RSSI());
     reply(200, "OK", body);
     return;
@@ -706,6 +763,10 @@ static void finish() {
   }
   if (strcmp(path, "/location") == 0) {
     location_route(is_get, is_delete);
+    return;
+  }
+  if (strcmp(path, "/settings") == 0) {
+    settings_route(is_get, strcmp(method, "PUT") == 0);
     return;
   }
 

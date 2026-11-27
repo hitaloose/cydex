@@ -14,6 +14,7 @@
 #include "logic/Pager.h"
 #include "logic/RowPages.h"
 #include "logic/Search.h"
+#include "logic/SettingsPatch.h"
 #include "logic/Showcase.h"
 #include "logic/Sun.h"
 #include "logic/WakeLease.h"
@@ -817,6 +818,53 @@ void test_wake_lease_parse() {
   TEST_ASSERT_EQUAL_STRING("ttl", wake_lease_parse("ttl=99999999999", &ttl));
 }
 
+// ---------- SettingsPatch (PUT /settings) ----------
+
+void test_settings_patch_reads_fields() {
+  SettingsPatch p;
+  TEST_ASSERT_NULL(settings_patch_parse("bright=70&bright_n=5&off_min=0&sound=1", &p));
+  TEST_ASSERT_TRUE(p.has_bright && p.has_bright_n && p.has_off && p.has_sound);
+  TEST_ASSERT_EQUAL(70, p.bright);
+  TEST_ASSERT_EQUAL(5, p.bright_n);
+  TEST_ASSERT_EQUAL(0, p.off_min);
+  TEST_ASSERT_TRUE(p.sound);
+  TEST_ASSERT_FALSE(p.has_grid || p.has_lang || p.has_sc_int);
+
+  TEST_ASSERT_NULL(settings_patch_parse("sc_int=900&sc_rand=false&sc_src=3&sc_boot=true", &p));
+  TEST_ASSERT_EQUAL(900, p.sc_int);
+  TEST_ASSERT_FALSE(p.sc_rand);
+  TEST_ASSERT_EQUAL(3, p.sc_src);
+  TEST_ASSERT_TRUE(p.sc_boot);
+  TEST_ASSERT_FALSE(p.has_bright);  // zera entre chamadas
+
+  TEST_ASSERT_NULL(settings_patch_parse("lang=en&grid=0", &p));
+  TEST_ASSERT_EQUAL_STRING("en", p.lang);
+  TEST_ASSERT_TRUE(p.has_grid);
+  TEST_ASSERT_FALSE(p.grid);
+}
+
+void test_settings_patch_rejects() {
+  SettingsPatch p;
+  TEST_ASSERT_EQUAL_STRING("query", settings_patch_parse("", &p));
+  TEST_ASSERT_EQUAL_STRING("query", settings_patch_parse(nullptr, &p));
+  TEST_ASSERT_EQUAL_STRING("query", settings_patch_parse("bright", &p));
+  TEST_ASSERT_EQUAL_STRING("query", settings_patch_parse("=5", &p));
+  TEST_ASSERT_EQUAL_STRING("bright", settings_patch_parse("bright=9", &p));
+  TEST_ASSERT_EQUAL_STRING("bright", settings_patch_parse("bright=101", &p));
+  TEST_ASSERT_EQUAL_STRING("bright", settings_patch_parse("bright=", &p));
+  TEST_ASSERT_EQUAL_STRING("bright_n", settings_patch_parse("bright_n=4", &p));
+  TEST_ASSERT_EQUAL_STRING("off_min", settings_patch_parse("off_min=3", &p));
+  TEST_ASSERT_EQUAL_STRING("sc_int", settings_patch_parse("sc_int=45", &p));
+  TEST_ASSERT_EQUAL_STRING("sc_src", settings_patch_parse("sc_src=4", &p));
+  TEST_ASSERT_EQUAL_STRING("sound", settings_patch_parse("sound=yes", &p));
+  TEST_ASSERT_EQUAL_STRING("lang", settings_patch_parse("lang=xx", &p));
+  TEST_ASSERT_EQUAL_STRING("lang", settings_patch_parse("lang=pt", &p));
+  TEST_ASSERT_EQUAL_STRING("bogus", settings_patch_parse("bogus=1", &p));
+  TEST_ASSERT_EQUAL_STRING("bright", settings_patch_parse("bright=999999999999", &p));
+  // Tudo ou nada: o válido antes do inválido não vale.
+  TEST_ASSERT_EQUAL_STRING("sound", settings_patch_parse("bright=50&sound=2", &p));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_generation_boundaries);
@@ -861,5 +909,7 @@ int main() {
   RUN_TEST(test_wake_lease_renew_and_expire);
   RUN_TEST(test_wake_lease_millis_wrap);
   RUN_TEST(test_wake_lease_parse);
+  RUN_TEST(test_settings_patch_reads_fields);
+  RUN_TEST(test_settings_patch_rejects);
   return UNITY_END();
 }
