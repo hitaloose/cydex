@@ -93,6 +93,8 @@ pub struct Attempt {
     /// IP usado e como foi achado (`cache`, `sistema`, `varredura`…).
     pub ip: Option<String>,
     pub via: Option<String>,
+    /// O sono esperou este envio (macOS, IOKit): `ms` é quanto ele esperou.
+    pub held: bool,
 }
 
 impl Attempt {
@@ -108,6 +110,7 @@ impl Attempt {
             ms: 0,
             ip: None,
             via: None,
+            held: false,
         }
     }
 
@@ -120,6 +123,7 @@ impl Attempt {
             _ => String::new(),
         };
         let head = format!("power: {what} ({:?}, {})", self.trigger, self.route);
+        let ip = if self.held { format!("{ip}, o sono esperou {} ms", self.ms) } else { ip };
         match self.outcome {
             Outcome::Ok => format!("{head} ok em {} ms, {} tentativa(s){ip}", self.ms, self.tries),
             Outcome::Failed => format!(

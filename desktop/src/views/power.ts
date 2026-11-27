@@ -97,6 +97,7 @@ function historyRow(a: Attempt) {
     detail = t("power.detail_superseded");
     dot = "";
   }
+  if (a.held && a.outcome !== "joined") detail += ` · ${t("power.held", { ms: duration(a.ms) })}`;
   return el(
     "div",
     { class: "attempt" },

@@ -43,7 +43,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: 
             _ => None,
         };
         if let (Some(e), Some(h)) = (event, HANDLER.get()) {
-            h(e);
+            h(e, super::Ack::none());
         }
         return 1;
     }

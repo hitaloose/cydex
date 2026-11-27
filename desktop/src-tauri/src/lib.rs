@@ -222,12 +222,49 @@ fn emit_power(app: &AppHandle) {
     let _ = app.emit("power", &snap);
 }
 
-fn on_power(app: &AppHandle, event: PowerEvent) {
+/// Teto que o sono espera o `/sleep` (macOS, IOKit). Nunca atrasar o sono
+/// de verdade: depois disso dorme mesmo sem resposta.
+const SLEEP_HOLD: Duration = Duration::from_secs(5);
+
+/// Quantas vezes e com que espera cada envio tenta.
+#[derive(Clone, Copy)]
+struct Plan {
+    tries: u32,
+    gap: Duration,
+    /// Teto de cada tentativa.
+    timeout: Duration,
+    /// Teto do envio inteiro (o sono esperando).
+    deadline: Option<tokio::time::Instant>,
+}
+
+impl Plan {
+    fn for_event(event: PowerEvent, holds_sleep: bool) -> Plan {
+        let p = |tries, gap_ms, timeout_ms| Plan {
+            tries,
+            gap: Duration::from_millis(gap_ms),
+            timeout: Duration::from_millis(timeout_ms),
+            deadline: None,
+        };
+        match event {
+            // O sono está esperando: tentativas curtas dentro dos 5 s.
+            PowerEvent::SystemSleep if holds_sleep => Plan { deadline: Some(tokio::time::Instant::now() + SLEEP_HOLD), ..p(3, 300, 2000) },
+            // Sem segurar o sono (Windows, Linux): o computador não espera.
+            PowerEvent::SystemSleep => p(1, 0, 3000),
+            // Só a tela apagou: o computador segue acordado, dá pra repetir.
+            PowerEvent::ScreenOff => p(3, 1000, 3000),
+            // Acordando: o Wi-Fi e o mDNS levam alguns segundos.
+            PowerEvent::ScreenOn | PowerEvent::SystemWake => p(10, 2000, 3000),
+            PowerEvent::Manual => p(1, 0, 3000),
+        }
+    }
+}
+
+fn on_power(app: &AppHandle, event: PowerEvent, ack: power::Ack) {
     let state = app.state::<AppState>();
     let cfg = state.cfg();
     if !cfg.power_sync || !cfg.is_paired() {
         log::debug!("power: {event:?} ignorado (sem sincronia ou sem chave)");
-        return;
+        return; // larga o ack: o sono segue na hora
     }
     let sleep = event.is_sleep();
     let now = now_ms();
@@ -237,24 +274,45 @@ fn on_power(app: &AppHandle, event: PowerEvent) {
         log::info!("{}", a.log_line());
         state.power.lock().unwrap().push(a);
         emit_power(app);
+        if ack.waits() {
+            // Vai dormir logo depois da tela apagar: o sono espera o /sleep
+            // que já está no ar terminar (até o teto).
+            let app = app.clone();
+            tauri::async_runtime::spawn(async move {
+                let started = std::time::Instant::now();
+                let deadline = tokio::time::Instant::now() + SLEEP_HOLD;
+                while app.state::<AppState>().power.lock().unwrap().busy && tokio::time::Instant::now() < deadline {
+                    tokio::time::sleep(Duration::from_millis(50)).await;
+                }
+                log::info!("power: sono liberado em {} ms (esperou o envio anterior)", started.elapsed().as_millis());
+                ack.done();
+            });
+        }
         return;
     }
-    send_power(app.clone(), event, sleep, cfg);
-}
-
-/// Dispara o envio em segundo plano (eventos do sistema e bandeja).
-fn send_power(app: AppHandle, trigger: PowerEvent, sleep: bool, cfg: Config) {
+    let plan = Plan::for_event(event, ack.waits());
+    let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        // Dormindo: o computador não espera, uma tentativa. Acordando: o
-        // Wi-Fi e o mDNS levam alguns segundos.
-        let tries = if sleep { 1 } else { 10 };
-        run_power(&app, trigger, sleep, cfg, tries).await;
+        let holds = ack.waits();
+        run_power(&app, event, sleep, cfg, plan).await;
+        if holds {
+            log::info!("power: sono liberado");
+        }
+        ack.done();
     });
 }
 
-/// Manda `/sleep` ou `/wake`, repetindo até `tries` vezes, e registra o
-/// resultado. Para se chegar um evento mais novo (dormiu de novo no meio).
-async fn run_power(app: &AppHandle, trigger: PowerEvent, sleep: bool, cfg: Config, tries: u32) -> Attempt {
+/// Dispara o envio em segundo plano (bandeja).
+fn send_power(app: AppHandle, trigger: PowerEvent, sleep: bool, cfg: Config) {
+    tauri::async_runtime::spawn(async move {
+        let plan = Plan::for_event(if sleep { PowerEvent::ScreenOff } else { PowerEvent::ScreenOn }, false);
+        run_power(&app, trigger, sleep, cfg, plan).await;
+    });
+}
+
+/// Manda `/sleep` ou `/wake` conforme o `plan` e registra o resultado. Para
+/// se chegar um evento mais novo (dormiu de novo no meio) ou o prazo acabar.
+async fn run_power(app: &AppHandle, trigger: PowerEvent, sleep: bool, cfg: Config, plan: Plan) -> Attempt {
     let state = app.state::<AppState>();
     // macOS: fora do App Nap até terminar (drop no fim da função).
     let _activity = power::begin_activity("CYDex: apagar/acender a tela junto com o computador");
@@ -262,26 +320,52 @@ async fn run_power(app: &AppHandle, trigger: PowerEvent, sleep: bool, cfg: Confi
     let route = if sleep { "/sleep" } else { "/wake" };
     let started = std::time::Instant::now();
     let mut a = Attempt::new(now_ms(), trigger, sleep, route);
+    a.held = plan.deadline.is_some();
     state.power.lock().unwrap().busy = true;
     emit_power(app);
-    for attempt in 0..tries {
+    // Tempo que sobra até o prazo (sem prazo: o teto de cada tentativa).
+    let left = |cap: Duration| match plan.deadline {
+        Some(d) => d.saturating_duration_since(tokio::time::Instant::now()).min(cap),
+        None => cap,
+    };
+    for attempt in 0..plan.tries {
         if state.power_seq.load(Ordering::SeqCst) != seq {
             a.outcome = Outcome::Superseded;
             break;
         }
         if attempt > 0 {
-            tokio::time::sleep(Duration::from_secs(2)).await;
+            if left(plan.gap + plan.timeout) <= plan.gap {
+                break; // não cabe mais uma tentativa antes do prazo
+            }
+            tokio::time::sleep(plan.gap).await;
         }
-        let r = {
+        let budget = left(Duration::MAX);
+        let r = tokio::time::timeout(budget, async {
             let _one = state.power_send.lock().await;
             // Esperou o envio anterior terminar: se ele era de um evento mais
             // novo, este já não vale.
             if state.power_seq.load(Ordering::SeqCst) != seq {
+                return None;
+            }
+            Some(state.api.power(&target(&cfg), route, left(plan.timeout)).await)
+        })
+        .await;
+        let r = match r {
+            Ok(Some(r)) => {
+                a.tries += 1;
+                r
+            }
+            Ok(None) => {
                 a.outcome = Outcome::Superseded;
                 break;
             }
-            a.tries += 1;
-            state.api.power(&target(&cfg), route, Duration::from_secs(3)).await
+            Err(_) => {
+                // O prazo acabou no meio (procurando o IP ou esperando a vez).
+                a.tries += 1;
+                a.outcome = Outcome::Failed;
+                a.reason = Some(Reason::Timeout);
+                break;
+            }
         };
         a.ip = r.ip.map(|ip| ip.to_string());
         a.via = r.via.map(String::from);
@@ -554,7 +638,7 @@ fn open_log(app: AppHandle, reveal: bool) -> CmdResult<()> {
 #[tauri::command]
 async fn power_now(app: AppHandle, sleep: bool) -> CmdResult<()> {
     let cfg = app.state::<AppState>().cfg();
-    let a = run_power(&app, PowerEvent::Manual, sleep, cfg, 1).await;
+    let a = run_power(&app, PowerEvent::Manual, sleep, cfg, Plan::for_event(PowerEvent::Manual, false)).await;
     match a.reason {
         None => Ok(()),
         Some(Reason::Unauthorized) => Err(ApiError::Unauthorized),
@@ -720,7 +804,7 @@ pub fn run() {
             build_tray(app.handle())?;
 
             let handle = app.handle().clone();
-            power::start(Arc::new(move |e| on_power(&handle, e)));
+            power::start(Arc::new(move |e, ack| on_power(&handle, e, ack)));
 
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {

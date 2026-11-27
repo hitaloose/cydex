@@ -112,6 +112,8 @@ export interface Attempt {
   ms: number;
   ip: string | null;
   via: string | null;
+  /** O sono esperou este envio (macOS): `ms` é quanto. */
+  held: boolean;
 }
 
 export interface PowerSnapshot {

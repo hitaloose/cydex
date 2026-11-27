@@ -25,7 +25,7 @@ async fn listen(
         while let Some(Ok(msg)) = stream.next().await {
             // true = vai dormir / protetor de tela ligou.
             if let Ok(active) = msg.body().deserialize::<bool>() {
-                on(if active { events.0 } else { events.1 });
+                on(if active { events.0 } else { events.1 }, super::Ack::none());
             }
         }
         zbus::Result::Ok(())
