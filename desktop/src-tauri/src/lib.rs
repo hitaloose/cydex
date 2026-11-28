@@ -29,7 +29,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, State, WindowEvent, Wry};
 use tauri_plugin_autostart::MacosLauncher;
@@ -54,11 +54,10 @@ pub struct Status {
 
 struct TrayItems {
     status: MenuItem<Wry>,
-    /// Linha da tela do CYD (só leitura).
-    screen: MenuItem<Wry>,
     sleep: MenuItem<Wry>,
     wake: MenuItem<Wry>,
-    sync: CheckMenuItem<Wry>,
+    /// Fecha todos os avisos abertos no CYD (DELETE /notices).
+    clear: MenuItem<Wry>,
     open: MenuItem<Wry>,
     quit: MenuItem<Wry>,
 }
@@ -174,14 +173,13 @@ fn update_tray(app: &AppHandle, cfg: &Config, st: &Status) {
         let _ = items.status.set_text(&line);
         let _ = items.sleep.set_text(tr("sleep_now"));
         let _ = items.wake.set_text(tr("wake_now"));
-        let _ = items.sync.set_text(tr("sync"));
-        let _ = items.sync.set_checked(cfg.power_sync);
+        let _ = items.clear.set_text(tr("clear_notices"));
         let _ = items.open.set_text(tr("open"));
         let _ = items.quit.set_text(tr("quit"));
-        let _ = items.screen.set_text(screen_line(&lang, &state.power.lock().unwrap().snapshot(cfg.power_sync)));
         let ready = st.online && st.key_ok == Some(true);
         let _ = items.sleep.set_enabled(ready);
         let _ = items.wake.set_enabled(ready);
+        let _ = items.clear.set_enabled(ready);
     }
     if let Some(tray) = app.tray_by_id("main") {
         let _ = tray.set_tooltip(Some(format!("CYDex — {line}")));
@@ -194,34 +192,11 @@ fn now_ms() -> i64 {
     chrono::Utc::now().timestamp_millis()
 }
 
-/// "HH:MM" no fuso do computador.
-fn clock(ms: i64) -> String {
-    use chrono::TimeZone;
-    chrono::Local.timestamp_millis_opt(ms).single().map(|t| t.format("%H:%M").to_string()).unwrap_or_default()
-}
-
-/// Linha da tela no menu da bandeja.
-fn screen_line(lang: &str, snap: &PowerSnapshot) -> String {
-    let tr = |k| tray_text::get(lang, k);
-    if !snap.sync {
-        return tr("screen_off").into();
-    }
-    match snap.last_sent() {
-        None => tr("screen_on").into(),
-        Some(a) if a.outcome == Outcome::Failed => tr("screen_failed").replace("{t}", &clock(a.at)),
-        Some(a) if a.sleep => tr("screen_slept").replace("{t}", &clock(a.at)),
-        Some(a) => tr("screen_ok").replace("{t}", &clock(a.at)),
-    }
-}
-
-/// Manda o registro pra janela e atualiza a linha da bandeja.
+/// Manda o registro pra janela.
 fn emit_power(app: &AppHandle) {
     let state = app.state::<AppState>();
     let cfg = state.cfg();
     let snap = state.power.lock().unwrap().snapshot(cfg.power_sync);
-    if let Some(items) = state.tray.lock().unwrap().as_ref() {
-        let _ = items.screen.set_text(screen_line(&lang_of(&cfg), &snap));
-    }
     let _ = app.emit("power", &snap);
 }
 
@@ -803,10 +778,9 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let tr = |k| tray_text::get(&lang, k);
     let items = TrayItems {
         status: MenuItem::with_id(app, "status", tr("online"), false, None::<&str>)?,
-        screen: MenuItem::with_id(app, "screen", tr("screen_on"), false, None::<&str>)?,
         sleep: MenuItem::with_id(app, "sleep", tr("sleep_now"), false, None::<&str>)?,
         wake: MenuItem::with_id(app, "wake", tr("wake_now"), false, None::<&str>)?,
-        sync: CheckMenuItem::with_id(app, "sync", tr("sync"), true, cfg.power_sync, None::<&str>)?,
+        clear: MenuItem::with_id(app, "clear", tr("clear_notices"), false, None::<&str>)?,
         open: MenuItem::with_id(app, "open", tr("open"), true, None::<&str>)?,
         quit: MenuItem::with_id(app, "quit", tr("quit"), true, None::<&str>)?,
     };
@@ -814,7 +788,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let sep2 = PredefinedMenuItem::separator(app)?;
     let menu = Menu::with_items(
         app,
-        &[&items.status, &items.screen, &sep1, &items.sleep, &items.wake, &items.sync, &sep2, &items.open, &items.quit],
+        &[&items.status, &sep1, &items.sleep, &items.wake, &items.clear, &sep2, &items.open, &items.quit],
     )?;
 
     // macOS: ícone "template" (o sistema pinta conforme o tema da barra).
@@ -838,13 +812,17 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
                 let sleep = event.id.as_ref() == "sleep";
                 send_power(app.clone(), PowerEvent::Manual, sleep, cfg);
             }
-            "sync" => {
+            "clear" => {
                 let app = app.clone();
                 tauri::async_runtime::spawn(async move {
-                    let mut cfg = app.state::<AppState>().cfg();
-                    cfg.power_sync = !cfg.power_sync;
-                    // save_config avisa a janela (evento "power").
-                    let _ = save_config(app.clone(), cfg).await;
+                    let state = app.state::<AppState>();
+                    let cfg = state.cfg();
+                    match state.api.close_notice(&target(&cfg), None).await {
+                        Ok(()) => log::info!("bandeja: avisos fechados"),
+                        Err(e) => log::warn!("bandeja: fechar avisos: {e}"),
+                    }
+                    // A janela (Avisos) relê com o status novo.
+                    refresh(&app).await;
                 });
             }
             _ => {}

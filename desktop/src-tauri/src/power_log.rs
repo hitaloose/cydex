@@ -156,13 +156,6 @@ pub struct PowerSnapshot {
     pub renewed_at: Option<i64>,
 }
 
-impl PowerSnapshot {
-    /// O último que mandou alguma coisa (ignora juntados e cancelados).
-    pub fn last_sent(&self) -> Option<&Attempt> {
-        self.attempts.iter().find(|a| matches!(a.outcome, Outcome::Ok | Outcome::Failed))
-    }
-}
-
 #[derive(Default)]
 pub struct PowerLog {
     attempts: VecDeque<Attempt>,
@@ -235,15 +228,6 @@ mod tests {
         let snap = log.snapshot(true);
         assert_eq!(snap.attempts.len(), KEEP);
         assert_eq!(snap.attempts[0].at, KEEP as i64 + 2);
-    }
-
-    #[test]
-    fn last_sent_skips_joined_and_superseded() {
-        let mut log = PowerLog::default();
-        log.push(Attempt { reason: Some(Reason::Connect), ..att(Outcome::Failed) });
-        log.push(att(Outcome::Joined));
-        log.push(att(Outcome::Superseded));
-        assert_eq!(log.snapshot(true).last_sent().unwrap().outcome, Outcome::Failed);
     }
 
     #[test]
