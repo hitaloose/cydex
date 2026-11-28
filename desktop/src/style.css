@@ -269,6 +269,9 @@ details[open] summary svg { transform: rotate(90deg); }
 .tabs { align-self: flex-start; padding: 3px; border-radius: 10px; background: var(--surface); }
 .tabs button { min-height: 30px; padding: 0 14px; font-size: 12px; }
 .card.disabled { opacity: 0.45; pointer-events: none; }
+.card.loading { display: flex; align-items: center; gap: 10px; min-height: 120px; justify-content: center; }
+.spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--surface-2); border-top-color: var(--accent); animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .slider { display: grid; grid-template-columns: minmax(0, 1fr) 44px; gap: 12px; align-items: center; width: 280px; }
 .slider span { font-size: 12px; font-weight: 600; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
 input[type="range"] { width: 100%; margin: 0; accent-color: var(--accent); }

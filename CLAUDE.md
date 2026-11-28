@@ -257,7 +257,7 @@ Status de espécie: círculo cheio accent com check = **capturado**; contorno mu
 | D03 | `DeskAvisos.dc.html` | Avisos (`views/notices.ts`) | Abertos, indicadores da Vitrine (`GET /status`, api ≥ 4), aviso de teste recolhido |
 | D04 | `DeskEnergia.dc.html` | Tela e energia (`views/power.ts`) | Interruptor, "Agora" (estado + rede de segurança), últimos envios com o motivo. D04b `DeskEnergiaAntigo`: api < 5 |
 | D05 | `DeskConexao.dc.html` | Conexão (`views/connection.ts`) | Endereço, chave, "Como o app acha o CYD" (`get_locate`). D05b `DeskPrimeiraVez`: sem chave, passo a passo |
-| D06 | `DeskAjustesTela.dc.html` | Ajustes do CYD (`views/settings.ts`) | Abas Tela e som (brilho de dia/noite, apagar tela, som + cidade do pôr do sol) e Vitrine e navegação (D06b). `get_cyd_settings`/`set_cyd_setting`: um campo por vez, slider grava ao soltar, o CYD devolve tudo. D06c: firmware sem `/settings` (api < 6) = faixa + controles desativados, só a cidade funciona |
+| D06 | `DeskAjustesTela.dc.html` | Ajustes do CYD (`views/settings.ts`) | Abas Tela e som (brilho de dia/noite, apagar tela, som + cidade do pôr do sol) e Vitrine e navegação (D06b). `get_cyd_settings`/`set_cyd_setting`: um campo por vez, slider grava ao soltar, o CYD devolve tudo. Na 1ª leitura, "Obtendo os ajustes do CYDex…" (o `GET` espera na fila do CYD atrás do status, dos saves e dos avisos); voltar à seção mostra os últimos lidos enquanto relê. D06c: firmware sem `/settings` (api < 6) = faixa + controles desativados, só a cidade funciona |
 | D07 | `DeskApp.dc.html` | Este app (`views/app.ts`) | Abrir com o sistema, idioma da janela, log |
 | D08 | `DeskBandeja.dc.html` | Menu da bandeja (`tray_text.rs`) | Linha "Tela: …" só leitura |
 - Testes: `cargo test`; `cargo test -- --ignored live_device --nocapture` roda contra o CYD de verdade (chave do `~/.cydex`).
@@ -267,6 +267,7 @@ Status de espécie: círculo cheio accent com check = **capturado**; contorno mu
 
 - Troca entre aparelhos via ESP-NOW.
 - Baixar saves pelo app (backup): precisa antes resolver o link do Wi-Fi morrendo sob TX contínuo (ver "Saves pela API"). Um vigia de link (ping no gateway, reconectar) também protegeria os avisos.
+- App: idioma padrão da janela em **inglês**, com o seletor (Este app) pra português. Hoje o padrão segue o idioma do sistema (`lang_of` em `lib.rs`: pt → pt-BR, o resto en); o `i18n.ts` já tem os dois e o seletor já existe.
 - App: pasta sincronizada (vigiar a pasta de saves do emulador e enviar sozinho) e trocar o `tools/cydex_claude.sh` por um comando do app.
 - **Sprites brilhantes.** Criatura com ★ (Time, Caixas, Membro, Hall da Fama, "Meu time" da Vitrine) mostra o sprite shiny. No SD, arquivos próprios no mesmo `SpriteFile.h` (`sprites_shiny_96/48/24.bin`, o `front_shiny` da PokeAPI no `tools/build_sd.py`); 64 não precisa (Evolução é da espécie). Sem arquivo (SD antigo), cai no normal. Memória igual: mesma vaga, só muda o arquivo lido.
 

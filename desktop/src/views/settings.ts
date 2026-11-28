@@ -98,6 +98,8 @@ function locationCard(cfg: Config, getStatus: () => Status) {
 type Tab = "display" | "showcase";
 // Fica entre uma visita e outra à seção.
 let tab: Tab = "display";
+// Últimos ajustes lidos: voltar à seção mostra na hora enquanto relê.
+let cache: { version: string; settings: CydSettings } | null = null;
 
 function intervalLabel(s: number): string {
   return s < 60 ? `${s} s` : `${s / 60} min`;
@@ -108,6 +110,7 @@ export function settingsView(getStatus: () => Status): View {
   let loc: ReturnType<typeof locationCard> | null = null;
   let cyd: CydSettings | null = null;
   let loadedFor = "";
+  let loading = false;
 
   const supported = (st: Status) => st.online && st.key_ok === true && (st.info?.api ?? 0) >= 6;
 
@@ -115,6 +118,7 @@ export function settingsView(getStatus: () => Status): View {
   const set = async (key: keyof CydSettings, value: string | number | boolean) => {
     try {
       cyd = await api.setCydSetting(key, value);
+      cache = { version: loadedFor, settings: cyd };
     } catch (e) {
       toast(errorText(e), true);
       cyd = await api.cydSettings().catch(() => cyd);
@@ -217,7 +221,12 @@ export function settingsView(getStatus: () => Status): View {
       off_opts: [1, 2, 5, 10, 0], sc_int_opts: [30, 60, 120, 300, 900], langs: [{ code: "pt-BR", name: "Português (Brasil)" }],
     };
     const enabled = ok && cyd !== null;
-    if (tab === "display") parts.push(displayCard(c, enabled), loc!.card);
+    if (ok && cyd === null && loading) {
+      // 1ª leitura: o GET /settings pode levar uns segundos (procurar o IP).
+      const wait = el("section", { class: "card loading", role: "status", "aria-live": "polite" }, el("span", { class: "spinner", "aria-hidden": "true" }), el("span", { class: "muted small" }, t("settings.loading")));
+      if (tab === "display") parts.push(wait, loc!.card);
+      else parts.push(wait);
+    } else if (tab === "display") parts.push(displayCard(c, enabled), loc!.card);
     else parts.push(...showcaseCards(c, enabled, st));
     root.replaceChildren(...parts);
   }
@@ -227,7 +236,21 @@ export function settingsView(getStatus: () => Status): View {
     const key = supported(st) ? `${st.info?.version}` : "";
     if (key === loadedFor) return;
     loadedFor = key;
-    cyd = key ? await api.cydSettings().catch((e) => (toast(errorText(e), true), null)) : null;
+    if (!key) {
+      cyd = null;
+      draw();
+      return;
+    }
+    if (cache?.version === key) cyd = cache.settings;
+    loading = true;
+    draw();
+    const fresh = await api.cydSettings().catch((e) => (toast(errorText(e), true), null));
+    loading = false;
+    if (loadedFor !== key) return;
+    if (fresh) {
+      cyd = fresh;
+      cache = { version: key, settings: fresh };
+    }
     draw();
   };
 
