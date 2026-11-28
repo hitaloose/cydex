@@ -67,25 +67,6 @@ export function screenSummary(p: PowerSnapshot): [string, string] {
   }
 }
 
-/// Linha curta do pé da barra lateral: [texto, classe].
-export function screenLine(p: PowerSnapshot): [string, string] {
-  const a = lastSent(p);
-  const s = screenState(p);
-  if (p.safety === false && (s === "on" || s === "awake")) return [t("power.line_nosafety"), "warn"];
-  switch (s) {
-    case "off":
-      return [t("power.off"), ""];
-    case "on":
-      return [t("power.on"), ""];
-    case "failed":
-      return [t("power.line_failed"), "fail"];
-    case "slept":
-      return [t("power.line_slept", { t: clock(a!.at) }), ""];
-    case "awake":
-      return [t("power.line_ok", { t: clock(a!.at) }), ""];
-  }
-}
-
 function historyRow(a: Attempt) {
   let chip: HTMLElement;
   let detail: string;

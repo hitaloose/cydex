@@ -96,9 +96,6 @@ body { display: flex; }
 }
 .cyd-card:hover { border-color: var(--muted); }
 .cyd-card .title { font-size: 12px; font-weight: 700; }
-.cyd-card .screen-line { padding-top: 6px; border-top: 1px solid var(--divider); font-size: 11px; font-weight: 600; color: var(--muted); }
-.cyd-card .screen-line.fail { color: var(--accent); }
-.cyd-card .screen-line.warn { color: var(--waiting); }
 .dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--faint); }
 .dot.ok { background: var(--success); }
 .dot.warn { background: var(--waiting); }

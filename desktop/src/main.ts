@@ -8,7 +8,7 @@ import { signal, type View } from "./views/common";
 import { connectionView } from "./views/connection";
 import { homeView } from "./views/home";
 import { noticesView } from "./views/notices";
-import { EMPTY_POWER, powerView, screenLine, screenState, screenSummary, type PowerView } from "./views/power";
+import { EMPTY_POWER, powerView, screenState, screenSummary, type PowerView } from "./views/power";
 import { onUploadProgress, savesView } from "./views/saves";
 import { settingsView } from "./views/settings";
 
@@ -66,11 +66,9 @@ function renderCard() {
   } else {
     [dot, title, sub] = ["ok", t("status.online"), t("status.sub_online", { v: status.info?.version ?? "", r: signal(status.info?.rssi) })];
   }
-  const [screen, screenCls] = screenLine(power);
   card.replaceChildren(
     el("span", { class: "row" }, el("span", { class: `dot ${dot}` }), el("span", { class: "title" }, title)),
     el("span", { class: "muted tiny" }, sub),
-    el("span", { class: `screen-line ${screenCls}` }, screen),
   );
   card.onclick = () => go("connection");
 }
