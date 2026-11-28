@@ -48,16 +48,30 @@ Every save on the card gets its own page: trainer, play time, badges, money and 
 
 #### Supported saves
 
-| Gen | Games | Dex | Party and boxes | Hall of Fame | Notes |
-|:-:|---|:-:|:-:|:-:|---|
-| 1 | Red, Blue, Yellow | — | — | — | Planned |
-| 2 | Gold, Silver, Crystal | — | — | — | Planned |
-| 3 | Ruby, Sapphire | ✅ | ✅ 14 boxes | ✅ | The save doesn't tell Ruby from Sapphire |
-| 3 | Emerald | ✅ | ✅ 14 boxes | ✅ | |
-| 3 | FireRed, LeafGreen | ✅ | ✅ 14 boxes | ✅ | The save doesn't tell FireRed from LeafGreen |
-| 4 | HeartGold, SoulSilver | ✅ | ✅ 18 boxes | ✅ | All 16 badges; the save doesn't tell HeartGold from SoulSilver |
-| 4 | Diamond, Pearl, Platinum | — | — | — | Planned |
-| 5+ | Black, White and later | — | — | — | Not yet |
+| Gen | Games | Platform | Dex | Party and boxes | Hall of Fame | Notes |
+|:-:|---|---|:-:|:-:|:-:|---|
+| 1 | Red, Blue | Game Boy | — | — | — | Planned |
+| 1 | Yellow | Game Boy | — | — | — | Planned |
+| 2 | Gold, Silver | Game Boy Color | — | — | — | Planned |
+| 2 | Crystal | Game Boy Color | — | — | — | Planned |
+| 3 | Ruby, Sapphire | Game Boy Advance | ✅ | ✅ 14 boxes | ✅ | The save doesn't tell Ruby from Sapphire |
+| 3 | Emerald | Game Boy Advance | ✅ | ✅ 14 boxes | ✅ | |
+| 3 | FireRed, LeafGreen | Game Boy Advance | ✅ | ✅ 14 boxes | ✅ | The save doesn't tell FireRed from LeafGreen |
+| 4 | Diamond, Pearl | Nintendo DS | — | — | — | Next |
+| 4 | Platinum | Nintendo DS | — | — | — | Next |
+| 4 | HeartGold, SoulSilver | Nintendo DS | ✅ | ✅ 18 boxes | ✅ | All 16 badges; the save doesn't tell HeartGold from SoulSilver |
+| 5 | Black, White | Nintendo DS | — | — | — | Not yet |
+| 5 | Black 2, White 2 | Nintendo DS | — | — | — | Not yet |
+| 6 | X, Y | Nintendo 3DS | — | — | — | Not yet |
+| 6 | Omega Ruby, Alpha Sapphire | Nintendo 3DS | — | — | — | Not yet |
+| 7 | Sun, Moon | Nintendo 3DS | — | — | — | Not yet |
+| 7 | Ultra Sun, Ultra Moon | Nintendo 3DS | — | — | — | Not yet |
+| 7 | Let's Go, Pikachu! / Let's Go, Eevee! | Nintendo Switch | — | — | — | Not yet |
+| 8 | Sword, Shield | Nintendo Switch | — | — | — | Not yet |
+| 8 | Brilliant Diamond, Shining Pearl | Nintendo Switch | — | — | — | Not yet |
+| 8 | Legends: Arceus | Nintendo Switch | — | — | — | Not yet |
+| 9 | Scarlet, Violet | Nintendo Switch | — | — | — | Not yet |
+| 9 | Legends: Z-A | Nintendo Switch | — | — | — | Not yet |
 
 Put the raw cartridge save (`.sav` or `.srm`, as most emulators write it: 128 KB for Gen 3, 512 KB for Gen 4) in `/saves` on the card, or upload it from the desktop app. DeSmuME's `.dsv` isn't accepted yet: export a raw `.sav`.
 
