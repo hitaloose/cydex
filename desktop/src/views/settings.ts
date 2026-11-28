@@ -222,12 +222,11 @@ export function settingsView(getStatus: () => Status): View {
     };
     const enabled = ok && cyd !== null;
     if (ok && cyd === null && loading) {
-      // 1ª leitura: o GET /settings pode levar uns segundos (procurar o IP).
-      const wait = el("section", { class: "card loading", role: "status", "aria-live": "polite" }, el("span", { class: "spinner", "aria-hidden": "true" }), el("span", { class: "muted small" }, t("settings.loading")));
-      if (tab === "display") parts.push(wait, loc!.card);
-      else parts.push(wait);
-    } else if (tab === "display") parts.push(displayCard(c, enabled), loc!.card);
+      // 1ª leitura: o GET /settings espera na fila do CYD (um cliente por vez).
+      parts.push(el("section", { class: "card loading", role: "status", "aria-live": "polite" }, el("span", { class: "spinner", "aria-hidden": "true" }), el("span", { class: "muted small" }, t("settings.loading"))));
+    } else if (tab === "display") parts.push(displayCard(c, enabled));
     else parts.push(...showcaseCards(c, enabled, st));
+    if (tab === "display" && loc) parts.push(loc.card);
     root.replaceChildren(...parts);
   }
 
@@ -261,10 +260,16 @@ export function settingsView(getStatus: () => Status): View {
     },
     async render(r) {
       root = r;
-      const cfg = await api.getConfig();
-      loc = locationCard(cfg, getStatus);
+      // Desenha já (carregando) e só depois espera a config e o CYD.
+      const st = getStatus();
+      loading = supported(st);
       draw();
-      await load(getStatus());
+      const settings = load(st);
+      api.getConfig().then((cfg) => {
+        loc = locationCard(cfg, getStatus);
+        draw();
+      });
+      await settings;
     },
   };
 }
