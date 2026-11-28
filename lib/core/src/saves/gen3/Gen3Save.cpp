@@ -220,6 +220,7 @@ bool gen3_summarize(const SaveHandle &h, SaveSummary &s) {
   s.minutes = small[GEN3_SMALL_PLAYED_MINUTES_OFFSET];
   s.seconds = small[GEN3_SMALL_PLAYED_SECONDS_OFFSET];
   s.dex_total = GEN3_NATIONAL_DEX_SPECIES_COUNT;
+  s.badge_total = 8;
   for (uint16_t n = 1; n <= GEN3_NATIONAL_DEX_SPECIES_COUNT; n++) {
     bool caught = bit(small, GEN3_SMALL_POKEDEX_CAUGHT_OFFSET, n);
     if (caught) s.caught++;
@@ -235,7 +236,7 @@ bool gen3_summarize(const SaveHandle &h, SaveSummary &s) {
     uint8_t byte = 0;
     if (read_block(h, GEN3_LARGE_BLOCK_FIRST_SECTION_ID, B.event_flag_base + (flag >> 3), &byte, 1) &&
         ((byte >> (flag & 7)) & 1))
-      s.badges |= (uint8_t)(1 << i);
+      s.badges |= (uint16_t)(1 << i);
   }
 
   // Uma criatura por vez (a RAM estática não comporta uma caixa decodificada).

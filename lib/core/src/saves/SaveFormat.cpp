@@ -1,9 +1,11 @@
 #include "SaveFormat.h"
 
 #include "saves/gen3/Gen3Dex.h"
+#include "saves/gen4/Gen4Save.h"
 
 static const SaveFormat *const kFormats[] = {
     &GEN3_SAVE_FORMAT,
+    &GEN4_SAVE_FORMAT,
 };
 
 const char *save_merge_dex(const SaveReader &r, DexStatus &out) {

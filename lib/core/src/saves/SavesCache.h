@@ -22,7 +22,7 @@
 //   129 3 B       reservado
 //   132 resumo (SAVE_SUMMARY_SIZE, saves/SaveSummary.h)
 
-constexpr uint16_t SAVES_CACHE_VERSION = 1;
+constexpr uint16_t SAVES_CACHE_VERSION = 2;  // 2: Gen4 (16 insígnias, onde está até 493)
 constexpr size_t SAVES_CACHE_HEADER_SIZE = 16;
 constexpr size_t SAVES_CACHE_NAME_SIZE = 128;
 constexpr size_t SAVES_CACHE_SUMMARY_AT = 132;

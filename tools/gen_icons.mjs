@@ -165,6 +165,11 @@ const RAW = [
   ["badge_line_10", 14, '<rect x="3.5" y="3.5" width="7" height="7" rx="1.3" transform="rotate(45 7 7)" fill="none" stroke="#fff" stroke-width="1.6"/>', 10],
   ["badge_7", 14, '<rect x="3" y="3" width="8" height="8" rx="1.5" transform="rotate(45 7 7)" fill="#fff"/>', 7],
   ["badge_line_7", 14, '<rect x="3.5" y="3.5" width="7" height="7" rx="1.3" transform="rotate(45 7 7)" fill="none" stroke="#fff" stroke-width="1.8"/>', 7],
+  // 16 insígnias (HG/SS) em 2 fileiras: 8 no Resumo, 6 no card da lista.
+  ["badge_8", 14, '<rect x="3" y="3" width="8" height="8" rx="1.5" transform="rotate(45 7 7)" fill="#fff"/>', 8],
+  ["badge_line_8", 14, '<rect x="3.5" y="3.5" width="7" height="7" rx="1.3" transform="rotate(45 7 7)" fill="none" stroke="#fff" stroke-width="1.7"/>', 8],
+  ["badge_6", 14, '<rect x="3" y="3" width="8" height="8" rx="1.5" transform="rotate(45 7 7)" fill="#fff"/>', 6],
+  ["badge_line_6", 14, '<rect x="3.5" y="3.5" width="7" height="7" rx="1.3" transform="rotate(45 7 7)" fill="none" stroke="#fff" stroke-width="2"/>', 6],
   // Ícone 24 ausente (Caixas, Hall da Fama) e vaga vazia do Time.
   ["dash_box_24", 24, '<rect x="0.5" y="0.5" width="23" height="23" rx="3" fill="none" stroke="#fff" stroke-width="1" stroke-dasharray="3 2"/>', 24],
   ["dash_box_48", 48, '<rect x="0.5" y="0.5" width="47" height="47" rx="4" fill="none" stroke="#fff" stroke-width="1" stroke-dasharray="3 2"/>', 48],

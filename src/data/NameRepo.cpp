@@ -15,7 +15,8 @@ struct Table {
 };
 
 Table s_moves{MOVES_PATH, false, false, {}};
-Table s_items{ITEMS_G3_PATH, false, false, {}};
+Table s_items_g3{ITEMS_G3_PATH, false, false, {}};
+Table s_items_g4{ITEMS_G4_PATH, false, false, {}};
 
 // Abre (reaproveitando, se já for o arquivo aberto) e confere o cabeçalho uma vez.
 bool open_table(Table &t) {
@@ -39,10 +40,11 @@ bool move_info(uint16_t id, MoveInfo *out) {
   return sd_read_at(name_table_offset(s_moves.h, id), rec, sizeof(rec)) && move_record_decode(rec, out);
 }
 
-bool item_name_g3(uint16_t id, char *out, size_t size) {
-  if (id == 0 || !open_table(s_items) || id > s_items.h.count || size == 0) return false;
+bool item_name(SaveGame game, uint16_t id, char *out, size_t size) {
+  Table &t = game == SaveGame::HeartGoldSoulSilver ? s_items_g4 : s_items_g3;
+  if (id == 0 || !open_table(t) || id > t.h.count || size == 0) return false;
   char name[NAME_TABLE_NAME_SIZE];
-  if (!sd_read_at(name_table_offset(s_items.h, id), (uint8_t *)name, sizeof(name))) return false;
+  if (!sd_read_at(name_table_offset(t.h, id), (uint8_t *)name, sizeof(name))) return false;
   name[sizeof(name) - 1] = 0;
   if (!name[0]) return false;
   strncpy(out, name, size - 1);

@@ -59,19 +59,26 @@ lv_obj_t *ui_game_chip(lv_obj_t *parent, SaveGame g) {
   return chip;
 }
 
-lv_obj_t *ui_badges(lv_obj_t *parent, uint8_t badges, lv_coord_t size, lv_coord_t gap) {
-  lv_obj_t *row = ui_box(parent);
-  lv_obj_set_size(row, LV_SIZE_CONTENT, size);
-  lv_obj_set_style_pad_column(row, gap, 0);
-  lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
-  lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-  const lv_img_dsc_t *on = size >= 10 ? &icon_badge_10 : &icon_badge_7;
-  const lv_img_dsc_t *off = size >= 10 ? &icon_badge_line_10 : &icon_badge_line_7;
-  for (int i = 0; i < 8; i++) {
+lv_obj_t *ui_badges(lv_obj_t *parent, uint16_t badges, uint8_t total, lv_coord_t size, lv_coord_t gap,
+                    lv_coord_t row_gap) {
+  if (total > SAVE_BADGES_MAX) total = SAVE_BADGES_MAX;
+  uint8_t rows = total > 8 ? 2 : 1;  // 16 (HG/SS): Johto em cima, Kanto embaixo
+  lv_obj_t *box = ui_box(parent);
+  lv_obj_set_size(box, 8 * size + 7 * gap, rows * size + (rows - 1) * row_gap);
+  lv_obj_set_style_pad_column(box, gap, 0);
+  lv_obj_set_style_pad_row(box, row_gap, 0);
+  lv_obj_set_flex_flow(box, LV_FLEX_FLOW_ROW_WRAP);
+  lv_obj_set_flex_align(box, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  const lv_img_dsc_t *on, *off;
+  if (size >= 10) on = &icon_badge_10, off = &icon_badge_line_10;
+  else if (size >= 8) on = &icon_badge_8, off = &icon_badge_line_8;
+  else if (size >= 7) on = &icon_badge_7, off = &icon_badge_line_7;
+  else on = &icon_badge_6, off = &icon_badge_line_6;
+  for (int i = 0; i < total; i++) {
     bool got = (badges >> i) & 1;
-    ui_icon(row, got ? on : off, got ? theme::ACCENT : theme::FAINT);
+    ui_icon(box, got ? on : off, got ? theme::ACCENT : theme::FAINT);
   }
-  return row;
+  return box;
 }
 
 lv_obj_t *ui_gender(lv_obj_t *parent, uint8_t gender, lv_coord_t size) {

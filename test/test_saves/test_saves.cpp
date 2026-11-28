@@ -467,6 +467,31 @@ void test_summary_roundtrip() {
   TEST_ASSERT_FALSE(save_head_decode(buf, &head));
 }
 
+// Campos que o Gen4 trouxe: 16 insígnias, "onde está" até 493, HGSS.
+void test_summary_gen4_fields() {
+  SaveSummary s, back;
+  memset(&s, 0, sizeof(s));
+  s.game = SaveGame::HeartGoldSoulSilver;
+  s.badges = 0x81FF;  // Johto inteira + 2 de Kanto
+  s.badge_total = 16;
+  s.where[492] = 18;  // Arceus na caixa 18
+  uint8_t buf[SAVE_SUMMARY_SIZE];
+  save_summary_encode(s, buf);
+  TEST_ASSERT_TRUE(save_summary_decode(buf, &back));
+  TEST_ASSERT_EQUAL((int)SaveGame::HeartGoldSoulSilver, (int)back.game);
+  TEST_ASSERT_EQUAL_HEX16(0x81FF, back.badges);
+  TEST_ASSERT_EQUAL_UINT8(16, back.badge_total);
+  TEST_ASSERT_EQUAL_UINT8(10, back.badge_count());
+  TEST_ASSERT_EQUAL_UINT8(18, back.where_of(493));
+  SaveHead head;
+  TEST_ASSERT_TRUE(save_head_decode(buf, &head));
+  TEST_ASSERT_EQUAL_HEX16(0x81FF, head.badges);
+  TEST_ASSERT_EQUAL_UINT8(16, head.badge_total);
+  buf[57] = 0;  // resumo sem total = 8 (Gen3)
+  TEST_ASSERT_TRUE(save_head_decode(buf, &head));
+  TEST_ASSERT_EQUAL_UINT8(8, head.badge_total);
+}
+
 // ---------- tabelas do SD ----------
 
 void test_name_table_and_moves() {
@@ -563,6 +588,7 @@ int main() {
   RUN_TEST(test_save_box_and_hof_reads);
   RUN_TEST(test_hof_with_bad_checksum_is_ignored);
   RUN_TEST(test_summary_roundtrip);
+  RUN_TEST(test_summary_gen4_fields);
   RUN_TEST(test_name_table_and_moves);
   RUN_TEST(test_species_growth_byte);
   RUN_TEST(test_saves_cache_roundtrip);

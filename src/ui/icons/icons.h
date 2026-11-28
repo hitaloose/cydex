@@ -98,6 +98,10 @@ extern const lv_img_dsc_t icon_badge_10;
 extern const lv_img_dsc_t icon_badge_line_10;
 extern const lv_img_dsc_t icon_badge_7;
 extern const lv_img_dsc_t icon_badge_line_7;
+extern const lv_img_dsc_t icon_badge_8;
+extern const lv_img_dsc_t icon_badge_line_8;
+extern const lv_img_dsc_t icon_badge_6;
+extern const lv_img_dsc_t icon_badge_line_6;
 extern const lv_img_dsc_t icon_dash_box_24;
 extern const lv_img_dsc_t icon_dash_box_48;
 

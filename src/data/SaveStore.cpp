@@ -238,6 +238,7 @@ const char *save_game_name(SaveGame g) {
     case SaveGame::RubySapphire: return "R/S";
     case SaveGame::Emerald: return "Emerald";
     case SaveGame::FireRedLeafGreen: return "FR/LG";
+    case SaveGame::HeartGoldSoulSilver: return "HG/SS";
     default: return "?";
   }
 }
@@ -247,6 +248,7 @@ uint32_t save_game_color(SaveGame g) {
     case SaveGame::RubySapphire: return 0xE8566B;
     case SaveGame::Emerald: return 0x6FCF6A;
     case SaveGame::FireRedLeafGreen: return 0xFF8A4C;
+    case SaveGame::HeartGoldSoulSilver: return 0xE0B970;
     default: return 0x93A0AD;
   }
 }

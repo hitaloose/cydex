@@ -19,7 +19,7 @@
 ## What it does
 
 - **📖 The whole national catalog.** 1025 species across nine generations, in a list or a sprite grid. Filter by caught or missing, by up to two types, or search by name or number. Jump straight to a generation.
-- **💾 Your progress, from your real saves.** Drop your Gen 3 saves (FireRed/LeafGreen, Ruby/Sapphire/Emerald) on the SD card and CYDex marks what you've seen and caught. Species you haven't met stay a mystery: `???`. Open a save to see your party, your boxes and every Hall of Fame team, and the entry of any species tells you where you keep it.
+- **💾 Your progress, from your real saves.** Drop your Gen 3 and Gen 4 saves on the SD card ([which games](#supported-saves)) and CYDex marks what you've seen and caught. Species you haven't met stay a mystery: `???`. Open a save to see your party, your boxes and every Hall of Fame team, and the entry of any species tells you where you keep it.
 - **🖼️ Showcase mode.** A trading card style display that rotates through your collection (or just your current team) every 30 seconds to 15 minutes. It shuffles without repeats, dims itself after sunset, and shifts a pixel or two each time so the screen doesn't burn in.
 - **🔔 Notifications from anything on your network.** A tiny HTTP API lets any script, CI job or smart home hub put a message on the screen. Claude Code integration comes built in.
 - **🖥️ A desktop companion.** A tray app that sleeps and wakes the display along with your computer and uploads saves over Wi-Fi.
@@ -38,13 +38,28 @@ Real screenshots, captured from the device over USB.
 
 ### Your saves
 
-Every save on the card gets its own page: trainer, play time, badges, money and that save's dex, plus the current party and all 14 boxes. Tap any creature for its real stats, nature, held item and moves. The Hall of Fame gathers every champion team from every save.
+Every save on the card gets its own page: trainer, play time, badges, money and that save's dex, plus the current party and every box. Tap any creature for its real stats, nature, held item and moves. The Hall of Fame gathers every champion team from every save.
 
 | | | |
 |:-:|:-:|:-:|
 | <img src="docs/img/saves.png" width="260" alt="Saves"><br><sub>Saves</sub> | <img src="docs/img/saves-summary.png" width="260" alt="Save summary"><br><sub>Save summary</sub> | <img src="docs/img/save-party.png" width="260" alt="Party"><br><sub>Party</sub> |
 | <img src="docs/img/save-boxes.png" width="260" alt="Boxes"><br><sub>Boxes</sub> | <img src="docs/img/member.png" width="260" alt="Party member"><br><sub>Party member</sub> | <img src="docs/img/member-stats.png" width="260" alt="Member stats"><br><sub>Real stats, nature up/down</sub> |
 | <img src="docs/img/member-moves.png" width="260" alt="Moves"><br><sub>Moves</sub> | <img src="docs/img/hall-of-fame.png" width="260" alt="Hall of Fame"><br><sub>Hall of Fame</sub> | <img src="docs/img/hall-of-fame-team.png" width="260" alt="Hall of Fame team"><br><sub>Champion team</sub> |
+
+#### Supported saves
+
+| Gen | Games | Dex | Party and boxes | Hall of Fame | Notes |
+|:-:|---|:-:|:-:|:-:|---|
+| 1 | Red, Blue, Yellow | — | — | — | Planned |
+| 2 | Gold, Silver, Crystal | — | — | — | Planned |
+| 3 | Ruby, Sapphire | ✅ | ✅ 14 boxes | ✅ | The save doesn't tell Ruby from Sapphire |
+| 3 | Emerald | ✅ | ✅ 14 boxes | ✅ | |
+| 3 | FireRed, LeafGreen | ✅ | ✅ 14 boxes | ✅ | The save doesn't tell FireRed from LeafGreen |
+| 4 | HeartGold, SoulSilver | ✅ | ✅ 18 boxes | ✅ | All 16 badges; the save doesn't tell HeartGold from SoulSilver |
+| 4 | Diamond, Pearl, Platinum | — | — | — | Planned |
+| 5+ | Black, White and later | — | — | — | Not yet |
+
+Put the raw cartridge save (`.sav` or `.srm`, as most emulators write it: 128 KB for Gen 3, 512 KB for Gen 4) in `/saves` on the card, or upload it from the desktop app. DeSmuME's `.dsv` isn't accepted yet: export a raw `.sav`.
 
 The interface is deliberately calm: no scrolling, no animations, one redraw per tap, and a dark theme that suits the CYD's viewing angles. It ships in English and Portuguese.
 
@@ -106,7 +121,7 @@ The [full guide](docs/guia.md) (in Portuguese) covers the hardware details, the 
 
 ## Roadmap
 
-- Saves from other generations
+- Saves from other generations (see [Supported saves](#supported-saves))
 - Save backups through the desktop app
 - More notification integrations
 - Trading between devices over ESP-NOW

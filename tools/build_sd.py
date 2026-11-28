@@ -8,8 +8,9 @@ Saída (copiar o conteúdo de --out pra raiz de um cartão FAT32):
     cydex/sprites_64.bin         64x64 (Evolução)
     cydex/sprites_48.bin         48x48 (Grade, Time, Hall da Fama)
     cydex/sprites_24.bin         24x24 (Caixas e lista do Hall da Fama)
-    cydex/moves.bin              golpes 1..354 (nome, tipo, PP base)
+    cydex/moves.bin              golpes 1..467 (nome, tipo, PP base)
     cydex/items_g3.bin           nomes dos itens pelo índice do Gen3
+    cydex/items_g4.bin           nomes dos itens pelo índice do Gen4
     saves/                       pasta vazia pros .sav/.srm
 
 Os layouts binários espelham lib/core/src/dex/SpeciesRecord.h,
@@ -85,7 +86,8 @@ NAME_TABLE_HEADER_SIZE = 16
 TABLE_NAME_SIZE = 24
 MOVE_RECORD_SIZE = 28
 ITEM_RECORD_SIZE = 24
-GEN3_MOVE_COUNT = 354  # Pound..Psycho Boost (ids iguais aos da PokeAPI)
+MOVE_COUNT = 467  # Pound..Shadow Force: até o Gen4 (ids iguais aos da PokeAPI)
+ITEM_GENERATIONS = {"g3": "generation-iii", "g4": "generation-iv"}  # items_<g>.bin
 GROWTH_RATES = {"slow": 1, "medium": 2, "fast": 3, "medium-slow": 4, "slow-then-very-fast": 5,
                 "fast-then-very-slow": 6}
 SPRITE_FILE_VERSION = 1
@@ -290,7 +292,7 @@ def encode_name_table_header(count: int, record_size: int) -> bytes:
 def load_move(n: int) -> bytes:
     move = fetch(f"{API}/move/{n}")
     name = localized_name(move, TABLE_NAME_SIZE)
-    # Golpes de tipo "shadow"/"unknown" não existem no Gen3; caem em Normal.
+    # Golpes de tipo "shadow"/"unknown" não existem nos jogos; caem em Normal.
     t = move["type"]["name"]
     type_id = TYPES.index(t) if t in TYPES else 0
     rec = struct.pack("<24sBB2x", name.encode("utf-8"), type_id, move["pp"] or 0)
@@ -298,26 +300,29 @@ def load_move(n: int) -> bytes:
     return rec
 
 
-def gen3_item_names(workers: int) -> dict[int, str]:
-    """{índice do item no Gen3: nome}, pelos game_indices da PokeAPI."""
+def item_names(workers: int) -> dict[str, dict[int, str]]:
+    """{"g3": {índice do item no Gen3: nome}, "g4": {...}}, pelos game_indices da PokeAPI."""
     listing = fetch(f"{API}/item?limit=3000")
     urls = [e["url"].rstrip("/") for e in listing["results"]]
 
     def one(url):
         item = fetch(url)
-        idx = [g["game_index"] for g in item["game_indices"] if g["generation"]["name"] == "generation-iii"]
-        if not idx:
-            return None
         try:
-            return idx[0], localized_name(item, TABLE_NAME_SIZE)
+            name = localized_name(item, TABLE_NAME_SIZE)
         except ValueError:
-            return idx[0], item["name"].replace("-", " ").title()[:TABLE_NAME_SIZE - 1]
+            name = item["name"].replace("-", " ").title()[:TABLE_NAME_SIZE - 1]
+        idx = {}
+        for key, gen in ITEM_GENERATIONS.items():
+            found = [g["game_index"] for g in item["game_indices"] if g["generation"]["name"] == gen]
+            if found:
+                idx[key] = found[0]
+        return idx, name
 
-    out: dict[int, str] = {}
+    out: dict[str, dict[int, str]] = {key: {} for key in ITEM_GENERATIONS}
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        for got in pool.map(one, urls):
-            if got:
-                out.setdefault(got[0], got[1])
+        for idx, name in pool.map(one, urls):
+            for key, i in idx.items():
+                out[key].setdefault(i, name)
     return out
 
 
@@ -380,25 +385,28 @@ def main() -> int:
         expected = SPRITE_HEADER_SIZE + count * (4 + size * size * 2)
         assert path.stat().st_size == expected, (path, path.stat().st_size, expected)
 
-    print(f"baixando {GEN3_MOVE_COUNT} golpes...")
+    print(f"baixando {MOVE_COUNT} golpes...")
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
-        moves = list(pool.map(load_move, range(1, GEN3_MOVE_COUNT + 1)))
+        moves = list(pool.map(load_move, range(1, MOVE_COUNT + 1)))
     with open(root / "moves.bin", "wb") as f:
-        f.write(encode_name_table_header(GEN3_MOVE_COUNT, MOVE_RECORD_SIZE))
+        f.write(encode_name_table_header(MOVE_COUNT, MOVE_RECORD_SIZE))
         for rec in moves:
             f.write(rec)
     assert moves[0][:5] == b"Pound" or NAMES_LANG != "en", moves[0]
 
-    print("baixando os itens (índice do Gen3)...")
-    items = gen3_item_names(args.workers)
-    item_count = max(items) if items else 0
-    with open(root / "items_g3.bin", "wb") as f:
-        f.write(encode_name_table_header(item_count, ITEM_RECORD_SIZE))
-        for i in range(1, item_count + 1):
-            f.write(struct.pack("<24s", items.get(i, "").encode("utf-8")))
+    print("baixando os itens (índices do Gen3 e do Gen4)...")
+    tables = item_names(args.workers)
+    for key, items in tables.items():
+        item_count = max(items) if items else 0
+        with open(root / f"items_{key}.bin", "wb") as f:
+            f.write(encode_name_table_header(item_count, ITEM_RECORD_SIZE))
+            for i in range(1, item_count + 1):
+                f.write(struct.pack("<24s", items.get(i, "").encode("utf-8")))
+        print(f"ok: items_{key}.bin ({len(items)} de 1..{item_count})")
     if NAMES_LANG == "en":
-        assert items.get(200) == "Leftovers", items.get(200)
-    print(f"ok: moves.bin ({GEN3_MOVE_COUNT}), items_g3.bin ({len(items)} de 1..{item_count})")
+        assert tables["g3"].get(200) == "Leftovers", tables["g3"].get(200)
+        assert tables["g4"].get(234) == "Leftovers", tables["g4"].get(234)
+    print(f"ok: moves.bin ({MOVE_COUNT})")
 
     size = (root / "species.bin").stat().st_size
     assert size == HEADER_SIZE + count * RECORD_SIZE, size

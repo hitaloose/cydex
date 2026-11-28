@@ -12,12 +12,16 @@ enum class SaveGame : uint8_t {
   RubySapphire = 1,  // o Gen3 não separa Ruby de Sapphire
   Emerald = 2,
   FireRedLeafGreen = 3,  // nem FireRed de LeafGreen
+  HeartGoldSoulSilver = 4,  // Gen4; nem HeartGold de SoulSilver
+  // Reservados: 5 = Diamond/Pearl, 6 = Platinum.
 };
+constexpr SaveGame SAVE_GAME_LAST = SaveGame::HeartGoldSoulSilver;
 
 constexpr uint8_t SAVE_PARTY_MAX = 6;
 constexpr uint8_t SAVE_HOF_MAX = 50;
-// "Onde está": 1 byte por espécie até a dex do Gen3.
-constexpr uint16_t SAVE_WHERE_SPECIES = 386;
+// "Onde está": 1 byte por espécie até a dex do Gen4.
+constexpr uint16_t SAVE_WHERE_SPECIES = 493;
+constexpr uint8_t SAVE_BADGES_MAX = 16;  // HGSS: Johto (bits 0..7) + Kanto (8..15)
 constexpr uint8_t SAVE_WHERE_NONE = 0;
 constexpr uint8_t SAVE_WHERE_PARTY = 0xFF;  // 1..14 = nº da caixa
 
@@ -39,7 +43,8 @@ struct SaveSummary {
   uint16_t hours;
   uint8_t minutes, seconds;
   uint32_t money;
-  uint8_t badges;  // bit i = insígnia i
+  uint16_t badges;      // bit i = insígnia i
+  uint8_t badge_total;  // 8 ou 16
   uint16_t seen, caught, dex_total;
   uint8_t hof_count;
   uint32_t first_hof;  // tempo da 1ª vitória: h << 16 | min << 8 | s (0 = nenhuma)
@@ -67,7 +72,8 @@ struct SaveHead {
   uint16_t tid;
   uint16_t hours;
   uint8_t minutes;
-  uint8_t badges;
+  uint16_t badges;
+  uint8_t badge_total;
   uint16_t seen, caught, dex_total;
   uint8_t hof_count;
   uint32_t first_hof;
@@ -75,11 +81,11 @@ struct SaveHead {
   uint8_t box_total;
   uint8_t party_count;
 };
-constexpr size_t SAVE_HEAD_SIZE = 56;
+constexpr size_t SAVE_HEAD_SIZE = 58;
 constexpr size_t SAVE_SUMMARY_PARTY_AT = 64;
 constexpr size_t SAVE_PARTY_BRIEF_SIZE = 28;
 
-constexpr size_t SAVE_SUMMARY_SIZE = 832;
+constexpr size_t SAVE_SUMMARY_SIZE = 928;
 // Offsets no resumo codificado, pra ler só um pedaço com seek.
 constexpr size_t SAVE_SUMMARY_HOF_COUNT_AT = 45;
 constexpr size_t SAVE_SUMMARY_HOF_HASH_AT = 232;

@@ -8,6 +8,7 @@
 #define SPRITES_24_PATH  CYDEX_DIR "/sprites_24.bin"
 #define MOVES_PATH       CYDEX_DIR "/moves.bin"
 #define ITEMS_G3_PATH    CYDEX_DIR "/items_g3.bin"
+#define ITEMS_G4_PATH    CYDEX_DIR "/items_g4.bin"
 #define SAVES_CACHE_PATH CYDEX_DIR "/saves.cache"
 #define STATUS_CACHE_PATH CYDEX_DIR "/status.cache"
 #define SAVES_DIR        "/saves"

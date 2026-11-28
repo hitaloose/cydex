@@ -163,7 +163,7 @@ void build_info(lv_obj_t *p) {
   lv_obj_set_size(dl, kW, 3 * 24);
   char item[NAME_TABLE_NAME_SIZE];
   if (!s_mon.item) strcpy(item, tr(STR_MEMBER_NONE));
-  else if (!item_name_g3(s_mon.item, item, sizeof(item))) snprintf(item, sizeof(item), "#%u", s_mon.item);
+  else if (!item_name(s_head.game, s_mon.item, item, sizeof(item))) snprintf(item, sizeof(item), "#%u", s_mon.item);
   snprintf(buf, sizeof(buf), tr(STR_MEMBER_OT_FMT), s_mon.ot, s_mon.tid);
   info_row(dl, 0, STR_MEMBER_NATURE, nature_name(s_mon.nature), true);
   info_row(dl, 1, STR_MEMBER_ITEM, item, true);

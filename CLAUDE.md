@@ -42,9 +42,9 @@ Nome: **CYDex** (CYD + dex, lê-se "sai-dex"). Não usar "Poké"/"Pokémon" no n
 | 15 | `Aviso.dc.html` | Aviso | Faixa de 56 px por cima de qualquer tela com o aviso mais importante: barra na cor do aviso, ícone, título, "subtítulo · mensagem" (2 linhas), "+n" dos outros. Toque fecha |
 | 15b | `VitrineAviso.dc.html` | Avisos na Vitrine | Até 3 balões compactos de 162×50 (ícone + título, subtítulo) empilhados à direita da janela do sprite, a partir do topo dela; o mais importante em cima e só ele com a ponta apontando pro sprite; toque num balão fecha só ele |
 | 15c | `VitrinePermissao.dc.html` | Vitrine: responder permissão | Aviso com `actions` ganha "›" no balão; tocar abre a folha 162×176 no lugar dos balões (ponta na mesma altura): título (2 linhas), pasta, mensagem (2 linhas), Negar / Permitir (40 px) e "ou responda no terminal". Permitir fica tracejado 1 s antes de aceitar toque. Tocar fora fecha sem responder; com a folha aberta a espécie não troca; fecha sozinha se o pedido sumir/mudar ou em 60 s |
-| 16 | `Saves.dc.html` | Saves | Cards de 50 px (3 por página, rodapé só "pág X de Y"): faixa na cor do jogo, treinador + gênero, chip do jogo, "tempo · dex x/386", 8 insígnias. Não reconhecido: tracejado, sem toque |
+| 16 | `Saves.dc.html` | Saves | Cards de 50 px (3 por página, rodapé só "pág X de Y"): faixa na cor do jogo, treinador + gênero, chip do jogo, "tempo · dex x/total" (386 no Gen3, 493 no Gen4), 8 insígnias (HG/SS: 16 em 2 fileiras de 6 px). Não reconhecido: tracejado, sem toque |
 | 16a | `SavesVazio.dc.html` | Saves: nenhum | Cartucho tracejado + como mandar saves |
-| 17 | `SaveResumo.dc.html` | Save: Resumo | Abas Resumo/Time/Caixas (uma tela, painéis). Avatar com a inicial, ID · arquivo, tempo, insígnias, dex deste save (visto por baixo do capturado), dinheiro, Hall da Fama (abre o 19 filtrado), brilhantes. ‹ › trocam de save |
+| 17 | `SaveResumo.dc.html` | Save: Resumo | Abas Resumo/Time/Caixas (uma tela, painéis). Avatar com a inicial, ID · arquivo, tempo, insígnias (HG/SS: 16 em 2 fileiras de 8 px, "x/16"; tweak `hgss`), dex deste save (visto por baixo do capturado), dinheiro, Hall da Fama (abre o 19 filtrado), brilhantes. ‹ › trocam de save |
 | 17a | `SaveTime.dc.html` | Save: Time | 3×2 com sprite 48, apelido, Nv, ★ e barra de PS (verde > 50%, amarelo > 20%, accent); vaga vazia tracejada |
 | 17b | `SaveCaixas.dc.html` | Save: Caixas | 6×5 células de 28 com ícone 24 + painel do selecionado (‹ › da caixa, sprite 48, "Abrir ›"). No cabeçalho, "N nas caixas" no lugar de ‹ › |
 | 18 | `Membro.dc.html` | Membro | Abas Info (selo ★/Nv, espécie que abre a Ficha, tipos, natureza, item, treinador) / Status (valores reais; o que a natureza sobe em accent, o que desce em azul) / Golpes (tipo, nome, PP atual/máx) |
@@ -167,11 +167,12 @@ Status de espécie: círculo cheio accent com check = **capturado**; contorno mu
 /cydex/sprites_64.bin       64×64 já reduzido no PC (Evolução)
 /cydex/sprites_48.bin       48×48 já reduzido no PC (Grade, Time, Hall da Fama)
 /cydex/sprites_24.bin       24×24 (Caixas e lista do Hall da Fama)
-/cydex/moves.bin            golpes 1..354: nome, tipo, PP base ("CYNT", dex/NameTable.h)
+/cydex/moves.bin            golpes 1..467 (até o Gen4): nome, tipo, PP base ("CYNT", dex/NameTable.h)
 /cydex/items_g3.bin         nome do item pelo índice do Gen3 (game_indices da PokeAPI)
+/cydex/items_g4.bin         idem, índice do Gen4 (o Membro escolhe pelo jogo do save: item_name)
 /cydex/saves.cache          gerado pelo CYD junto do status.cache: um resumo fixo por save (SavesCache.h)
 /cydex/status.cache         gerado pelo CYD: assinatura dos saves + bits visto/capturado
-/saves/*.sav, *.srm         saves (hoje só Gen3; uma geração nova é um parser novo em lib/core/saves)
+/saves/*.sav, *.srm         saves (Gen3 e HGSS; uma geração nova é um parser novo em lib/core/src/saves)
 ```
 
 - Os layouts ficam em `lib/core/src/dex/SpeciesRecord.h`, `SpriteFile.h` e `NameTable.h`, que são a fonte da verdade e devem bater com o `tools/build_sd.py`. O byte 39 do `species.bin` é a curva de crescimento (0 = desconhecida, SD antigo: o nível de quem está na caixa vira "Nv ?").
@@ -182,7 +183,9 @@ Status de espécie: círculo cheio accent com check = **capturado**; contorno mu
 ### Saves e Hall da Fama
 
 - Modelo genérico em `lib/core/saves/` (`SaveMon`, `SaveSummary`/`SaveHead`, `SavesCache`); cada geração só preenche os mesmos tipos pelo `SaveFormat` (`open`, `summarize`, `read_party`, `read_box`, `read_hof_team`). Gen3 em `saves/gen3/` (`Gen3Pk3` decifra, `Gen3Species` índice interno → nacional, `Gen3Save` lê aos pedaços seguindo os IDs das seções; offsets conferidos no PKHeX). Nível e status de quem está na caixa: `logic/MonStats` com a base e a curva do `species.bin`.
-- O parse pesado (time, 14 caixas, Hall da Fama) roda só junto do da dex, quando a assinatura dos saves muda, e grava o `saves.cache` (registro fixo por save: resumo, time, hashes dos times do Hall, "onde está" com 1 byte por espécie até 386). Listas, Menu, "Onde está" e "Meu time" leem dele com seek (`data/SaveStore`); só o time, uma caixa e um time do Hall abrem o save.
+- O parse pesado (time, 14 caixas, Hall da Fama) roda só junto do da dex, quando a assinatura dos saves muda, e grava o `saves.cache` (registro fixo por save: resumo, time, hashes dos times do Hall, "onde está" com 1 byte por espécie até 493; `SAVES_CACHE_VERSION` 2). Listas, Menu, "Onde está" e "Meu time" leem dele com seek (`data/SaveStore`); só o time, uma caixa e um time do Hall abrem o save.
+- Os jogos suportados ficam na tabela "Supported saves" do README. Parser novo (ou jogo novo num parser) = atualizar a linha dele lá.
+- Gen4 em `saves/gen4/` (só HGSS por enquanto; D/P/Pt = outra entrada em `Gen4Layout.h`, com rodapé de 0x14): 512 KB, duas cópias de 256 KB; o bloco geral e o de armazenamento escolhem a cópia cada um por conta própria (maior contador com CRC16-CCITT válido; só a mais nova é validada primeiro). `Gen4Pk4` decifra (LCRNG, mesma tabela de ordem dos blocos do Gen3, `saves/PkBlockOrder.h`); a espécie já é o nº nacional. Texto: só o pedaço latino da tabela do PKHeX (`Gen4Text`). Bits da dex acima de 493 vêm ligados no save real e são ignorados. O Hall da Fama (bloco extra em 0x23000, anel de 30 times) não tem CRC conferível e guarda a data, não o tempo de jogo: `first_hof` = 0. 16 insígnias (`SaveSummary::badges` u16 + `badge_total`). Teste com o save real: `CYDEX_TEST_SAVE_HGSS=<.sav> pio test -e native_test -f test_gen4`.
 - O Gen3 não guarda data no Hall da Fama: só a ordem (0 = o mais antigo) e o tempo de jogo da 1ª vitória (game stat 1). O mesmo time em dois saves (mesmo PID + ID nas 6 vagas) entra uma vez.
 - Vitrine › Mostrar "Meu time" (`ShowcaseSource::Team`): o time de todos os saves; o saco sorteia por posição. Apelido + Nv no nome, "#nº · Espécie", o save e ★ no rodapé; status da espécie.
 
@@ -274,5 +277,4 @@ Pendências pequenas (vistas nos prints):
 - Evolução: nome longo sai cortado no meio ("Charmanc"); usar "…" (`ui_label_clamp`).
 - Saves: os não reconhecidos vão pro fim da lista (hoje é a ordem do cartão).
 - Caixas: segurar ‹ › não repete (o canvas pede `HoldRepeat`).
-- Canvas: trocar "FireRed/LeafGreen" e "Ruby/Sapphire" por "FR/LG" e "R/S", como no firmware.
 - README: refazer o `saves.png` (mostra "1 saves", de antes do singular).

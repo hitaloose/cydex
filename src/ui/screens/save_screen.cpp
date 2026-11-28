@@ -159,10 +159,12 @@ void build_summary(lv_obj_t *p) {
   lv_obj_t *b = tile(p, kX, 52, kW, 28);
   lv_obj_align(ui_label(b, &font_12_600, theme::MUTED, tr(STR_SAVE_BADGES)), LV_ALIGN_LEFT_MID, 10, 0);
   lv_obj_t *count = ui_label(b, &font_12_700, theme::TEXT, "");
-  lv_label_set_text_fmt(count, "%u/8", s.badge_count());
+  lv_label_set_text_fmt(count, "%u/%u", s.badge_count(), s.badge_total);
   lv_obj_align(count, LV_ALIGN_RIGHT_MID, -10, 0);
-  lv_obj_t *icons = ui_badges(b, s.badges, 10, 6);
-  lv_obj_align(icons, LV_ALIGN_RIGHT_MID, -42, 0);
+  bool two_rows = s.badge_total > 8;  // HG/SS: 2 fileiras de 8 px
+  lv_obj_t *icons = two_rows ? ui_badges(b, s.badges, s.badge_total, 8, 5, 4)
+                             : ui_badges(b, s.badges, s.badge_total, 10, 6);
+  lv_obj_align(icons, LV_ALIGN_RIGHT_MID, two_rows ? -50 : -42, 0);
 
   // Dex deste save: visto (faint) por baixo do capturado (accent).
   lv_obj_t *d = tile(p, kX, 85, kW, 36);

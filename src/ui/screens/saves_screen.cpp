@@ -85,8 +85,10 @@ void card(lv_obj_t *parent, lv_coord_t y, uint8_t index) {
   format_playtime(s.hours, s.minutes, time, sizeof(time));
   snprintf(sub, sizeof(sub), tr(STR_SAVES_SUB_FMT), time, s.caught, s.dex_total);
   lv_obj_set_pos(ui_label(box, &font_12_500, theme::MUTED, sub), 13, 27);
-  lv_obj_t *badges = ui_badges(box, s.badges, 7, 3);
-  lv_obj_align(badges, LV_ALIGN_TOP_RIGHT, -10, 31);
+  bool two_rows = s.badge_total > 8;  // HG/SS: 2 fileiras de 6 px
+  lv_obj_t *badges = two_rows ? ui_badges(box, s.badges, s.badge_total, 6, 3, 3)
+                              : ui_badges(box, s.badges, s.badge_total, 7, 3);
+  lv_obj_align(badges, LV_ALIGN_TOP_RIGHT, -10, two_rows ? 26 : 31);
 }
 
 void render() {

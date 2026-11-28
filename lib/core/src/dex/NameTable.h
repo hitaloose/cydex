@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
-// /cydex/moves.bin e /cydex/items_g3.bin: tabelas de nomes por índice, com
+// /cydex/moves.bin e /cydex/items_g3.bin / items_g4.bin: tabelas de nomes por índice, com
 // registros fixos (seek em NAME_TABLE_HEADER_SIZE + (id-1) * registro).
 // FONTE DA VERDADE do formato (tools/build_sd.py grava igual).
 //
@@ -16,6 +16,7 @@
 // Registro: char[24] nome UTF-8 terminado em NUL e depois os campos extras.
 //   moves.bin    (28 B): 24 tipo (SpeciesType) · 25 PP base · 26 2 B reservado
 //   items_g3.bin (24 B): só o nome, pelo índice do item no Gen3
+//   items_g4.bin (24 B): idem, pelo índice do Gen4
 
 constexpr uint16_t NAME_TABLE_VERSION = 1;
 constexpr size_t NAME_TABLE_HEADER_SIZE = 16;

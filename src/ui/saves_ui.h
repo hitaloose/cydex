@@ -51,8 +51,10 @@ const char *nature_name(uint8_t nature);
 
 // Chip do jogo (18 px, cor do jogo, texto escuro): "Emerald", "R/S", "FR/LG".
 lv_obj_t *ui_game_chip(lv_obj_t *parent, SaveGame g);
-// Fileira de 8 insígnias (losangos de 7 ou 10 px), cheias até `badges`.
-lv_obj_t *ui_badges(lv_obj_t *parent, uint8_t badges, lv_coord_t size, lv_coord_t gap);
+// Insígnias (losangos de 6, 7, 8 ou 10 px), cheias onde o bit de `badges`
+// estiver ligado. `total` 8 = uma fileira; 16 (HG/SS) = duas de 8.
+lv_obj_t *ui_badges(lv_obj_t *parent, uint16_t badges, uint8_t total, lv_coord_t size, lv_coord_t gap,
+                    lv_coord_t row_gap = 0);
 // Ícone de gênero do treinador (0 masculino, 1 feminino).
 lv_obj_t *ui_gender(lv_obj_t *parent, uint8_t gender, lv_coord_t size);
 // Imagem do sprite `n` (ou a caixa tracejada, se não carregar/ovo). O
