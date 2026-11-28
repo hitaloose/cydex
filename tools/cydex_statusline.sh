@@ -3,11 +3,11 @@
 #
 # A CLI manda no stdin rate_limits.five_hour e .seven_day (used_percentage e
 # resets_at; só em plano Pro/Max, e só depois da 1ª resposta da sessão). Daqui
-# sai um PUT /status/quota com o quanto já foi USADO das duas janelas, como o
-# /usage: "5h 20% | 7d 45%" (sem a de 7 dias, só "5h 20%"). Sem barra; a cor
-# do texto é a da janela mais usada: muted até 50%, amarelo até 80%, accent
-# acima. O ttl é o tempo até a janela de 5 h renovar: depois disso o número
-# ficaria velho e o chip some sozinho.
+# saem duas pílulas com o quanto já foi USADO, como o /usage:
+# PUT /status/quota "5h 20%" e PUT /status/quota7d "7d 45%" (sem a de 7 dias,
+# só a de 5 h). Sem barra; a cor de cada uma: muted até 50%, amarelo até 80%,
+# accent acima. O ttl de cada uma é o tempo até a sua janela renovar: depois
+# disso o número ficaria velho e a pílula some sozinha.
 #
 # No settings.json do Claude Code:
 #   "statusLine": {"type": "command", "command": "\"$HOME/Development/cydex/tools/cydex_statusline.sh\""}
@@ -26,40 +26,51 @@ IN="$(cat)"
 STAMP="$HOME/.cydex.quota"
 
 pct() { printf '%s' "$IN" | jq -r "$1 // empty | floor | if . > 100 then 100 elif . < 0 then 0 else . end" 2>/dev/null; }
+reset_at() { printf '%s' "$IN" | jq -r "$1 // empty | floor" 2>/dev/null; }
+
+# Uma pílula: put <id> <rótulo> <usado> <resets_at> <ttl sem resets_at>.
+put() {
+  if [ "$3" -gt 80 ]; then color="#FF5A4E"; elif [ "$3" -gt 50 ]; then color="#F5D547"; else color="#93A0AD"; fi
+  ttl=$5
+  if [ -n "$4" ]; then
+    ttl=$(($4 - now))
+    [ "$ttl" -lt 60 ] && ttl=60
+    [ "$ttl" -gt 86400 ] && ttl=86400  # máx do firmware: a de 7 dias renova pelo carimbo de 10 min
+  fi
+  body="{\"text\":\"$2 $3%\",\"text_color\":\"$color\",\"ttl\":$ttl}"
+  if [ -n "${CYDEX_DRY:-}" ]; then
+    printf 'PUT http://%s/status/%s %s\n' "$HOST" "$1" "$body" >&2
+  else
+    # -4: o CYD só tem IPv4.
+    printf '%s' "$body" | curl -4 -s -m 5 -o /dev/null -X PUT \
+      -H "Authorization: Bearer ${CYDEX_KEY:-}" -H "Content-Type: application/json" \
+      --data-binary @- "http://$HOST/status/$1"
+  fi
+}
+
 used="$(pct .rate_limits.five_hour.used_percentage)"
 week="$(pct .rate_limits.seven_day.used_percentage)"
-resets="$(printf '%s' "$IN" | jq -r '.rate_limits.five_hour.resets_at // empty | floor' 2>/dev/null)"
 
 if [ -n "$used" ]; then
-  text="5h $used%"
-  worst=$used
-  if [ -n "$week" ]; then
-    text="$text | 7d $week%"
-    [ "$week" -gt "$worst" ] && worst=$week
-  fi
+  state="$used ${week:--}"
   now="$(date +%s)"
   last_s=0
-  last_text=""
-  [ -f "$STAMP" ] && { read -r last_s _old; read -r last_text; } <"$STAMP" 2>/dev/null
+  last_state=""
+  [ -f "$STAMP" ] && { read -r last_s _old; read -r last_state; } <"$STAMP" 2>/dev/null
   age=$((now - ${last_s:-0}))
   # 1x/min no máximo; mesmo valor só de 10 em 10 min (CYD reiniciado volta a ver).
-  if [ "$age" -ge 60 ] && { [ "$text" != "$last_text" ] || [ "$age" -ge 600 ]; }; then
-    if [ "$worst" -gt 80 ]; then color="#FF5A4E"; elif [ "$worst" -gt 50 ]; then color="#F5D547"; else color="#93A0AD"; fi
-    ttl=18000  # sem resets_at: a janela inteira
-    if [ -n "$resets" ]; then
-      ttl=$((resets - now))
-      [ "$ttl" -lt 60 ] && ttl=60
-      [ "$ttl" -gt 86400 ] && ttl=86400
-    fi
-    body="{\"text\":\"$text\",\"text_color\":\"$color\",\"ttl\":$ttl}"
+  if [ "$age" -ge 60 ] && { [ "$state" != "$last_state" ] || [ "$age" -ge 600 ]; }; then
+    [ -z "${CYDEX_DRY:-}" ] && printf '%s\n%s\n' "$now" "$state" >"$STAMP"
+    r5="$(reset_at .rate_limits.five_hour.resets_at)"
+    r7="$(reset_at .rate_limits.seven_day.resets_at)"
+    # As duas em sequência (o CYD atende um cliente por vez), em segundo plano
+    # e sem herdar a saída: a linha do terminal não espera o CYD.
     if [ -n "${CYDEX_DRY:-}" ]; then
-      printf 'PUT http://%s/status/quota %s\n' "$HOST" "$body" >&2
+      put quota 5h "$used" "$r5" 18000
+      [ -n "$week" ] && put quota7d 7d "$week" "$r7" 86400
     else
-      printf '%s\n%s\n' "$now" "$text" >"$STAMP"
-      # -4: o CYD só tem IPv4. Fundo e sem herdar a saída: a linha não espera.
-      (printf '%s' "$body" | curl -4 -s -m 5 -o /dev/null -X PUT \
-        -H "Authorization: Bearer ${CYDEX_KEY:-}" -H "Content-Type: application/json" \
-        --data-binary @- "http://$HOST/status/quota") </dev/null >/dev/null 2>&1 &
+      ( put quota 5h "$used" "$r5" 18000
+        [ -n "$week" ] && put quota7d 7d "$week" "$r7" 86400 ) </dev/null >/dev/null 2>&1 &
     fi
   fi
 fi

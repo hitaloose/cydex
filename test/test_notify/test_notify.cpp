@@ -499,12 +499,13 @@ void test_status_board() {
   TEST_ASSERT_TRUE(b.version() != v);
   TEST_ASSERT_EQUAL_STRING("claude", b.at(0).id);
   TEST_ASSERT_EQUAL_STRING("2", b.at(0).text);
+  TEST_ASSERT_EQUAL(StatusError::None, b.put(chip("quota7d", "7d"), 0));
   TEST_ASSERT_EQUAL(StatusError::None, b.put(chip("ci", "ok"), 0));
   TEST_ASSERT_EQUAL(StatusError::Full, b.put(chip("x", "y"), 0));
   TEST_ASSERT_EQUAL(1, b.remove("ci"));
   TEST_ASSERT_EQUAL(0, b.remove("ci"));
-  TEST_ASSERT_EQUAL(2, b.size());
-  TEST_ASSERT_EQUAL(2, b.remove_all());
+  TEST_ASSERT_EQUAL(3, b.size());
+  TEST_ASSERT_EQUAL(3, b.remove_all());
 }
 
 void test_status_ttl_renews_on_put() {
