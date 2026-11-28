@@ -8,10 +8,10 @@
 // Indicadores (PUT /status/<id>, tela 14b): estado contínuo de alguma coisa,
 // mostrado como um chip pequeno no rodapé da Vitrine. O firmware não sabe o
 // que eles são: o hook do Claude Code manda "claude" (sessões) e a statusline
-// manda "quota" (cota de 5 h), mas qualquer cliente pode mandar outro.
+// manda "quota" (cota usada de 5 h e de 7 dias), mas qualquer cliente pode mandar outro.
 //
 // Corpo (o mesmo leitor do POST /notices):
-//   text        obrigatório, curto ("2", "5h"; cortado em ~10 caracteres)
+//   text        obrigatório, curto ("2", "5h 20% | 7d 45%"; cortado em 23 B)
 //   icon        info, check, alert, shield, clock, bell, terminal (desconhecido = sem ícone)
 //   color       #RRGGBB do ícone e da barra (padrão muted)
 //   text_color  #RRGGBB do texto (padrão text)
@@ -23,7 +23,7 @@ constexpr uint32_t STATUS_MAX_TTL_S = 86400;
 
 struct StatusItem {
   char id[17];      // [A-Za-z0-9._:-], até 16
-  char text[16];    // já cabendo na fonte (text_fit)
+  char text[24];    // já cabendo na fonte (text_fit); "5h 100% | 7d 100%" cabe
   bool has_icon;
   NoticeIcon icon;
   uint32_t color;       // ícone e barra

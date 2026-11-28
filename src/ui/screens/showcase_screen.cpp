@@ -1,19 +1,20 @@
 // 14 Modo vitrine (canvas: Vitrine.dc.html, "carta"; CLAUDE.md "Modo vitrine").
 //   cartão 314x234 sem moldura (3 px da borda da tela, padding 3/5):
-//     cabeçalho 22: nome (16 px, 1 linha, "…") e tipos abreviados à direita
+//     cabeçalho 22: marca de status, nome (16 px, 1 linha, "…") e tipos
+//       abreviados à direita
 //     corpo: janela 148x148 (borda 2 na cor do tipo 1 a 50% sobre o fundo; com 2 tipos,
 //       esquerda/baixo no tipo 1 e topo/direita no tipo 2) com o sprite 96 em 2x
 //       cortado em 144 (72 px do original, centrados na parte opaca; mais alto
 //       que 72, ancora embaixo) · medidas + 6 status com rótulo, valor e barra
-//     rodapé 18: "#nº · Geração X" e o status de captura
+//     rodapé 18: "#nº · Geração X" e os indicadores (14b)
 //   Mostrar "Todos" inclui as não vistas: só nº, nome e sprite; tipos, medidas
 //     e valores viram "???", borda neutra (canvas: tweak naoVisto)
 //   Mostrar "Meu time": o time de todos os saves (resumos do saves.cache). O
 //     nome vira o apelido + "Nv", o rodapé "#nº · Espécie", o save e a ★;
 //     tipos, medidas e status continuam os da espécie
 //   tocar em qualquer lugar volta pro Menu
-// 14b: indicadores do PUT /status (notify/Status.h) em chips no rodapé, antes
-//   da marca de status; com chip, a marca fica só o círculo. Sobrevivem à
+// 14b: indicadores do PUT /status (notify/Status.h) em chips à direita do
+//   rodapé (o "#nº · Geração" cede espaço com "…"). Sobrevivem à
 //   troca de espécie e só são redesenhados quando a versão do quadro muda.
 // 15c: balão de aviso com `actions` ganha "›" e abre a folha de resposta
 //   (Negar / Permitir, que só aceita toque 1 s depois de abrir). Tocar fora
@@ -54,6 +55,7 @@ constexpr lv_coord_t kPadV = 3, kPadH = 5, kGap = 4;
 constexpr lv_coord_t kInnerW = kCardW - 2 * kPadH;  // 304
 // Rodapé: 18 de conteúdo + 4 de padding + 1 de borda (content-box no canvas).
 constexpr lv_coord_t kHeadH = 22, kFootH = 23;
+constexpr lv_coord_t kMarkW = 14, kMarkGap = 6;  // marca de status antes do nome
 constexpr lv_coord_t kBodyY = kHeadH + kGap;
 constexpr lv_coord_t kBodyH = kCardH - 2 * kPadV - kHeadH - kFootH - 2 * kGap;  // 175
 constexpr lv_coord_t kWinW = 148, kWinBorder = 2;  // janela de 144 por dentro
@@ -85,7 +87,6 @@ lv_timer_t *s_timer;
 lv_obj_t *s_scr;
 // Indicadores (14b): contêiner no rodapé da troca atual e a palavra de status.
 lv_obj_t *s_chips;
-lv_obj_t *s_state_word;
 uint32_t s_chips_version;
 lv_timer_t *s_watch;  // 250 ms: indicadores mudaram? a folha ainda vale?
 // Folha de resposta (15c).
@@ -141,7 +142,8 @@ SavePartyBrief s_brief;
 SaveHead s_brief_save;
 
 // Cabeçalho: tipos à direita, o nome fica com o que sobra.
-void build_header(uint16_t n, const SpeciesRecord *rec, bool unseen) {
+void build_header(uint16_t n, const SpeciesRecord *rec, SpeciesState state) {
+  bool unseen = state == SpeciesState::Unknown;
   lv_obj_t *chips = ui_box(s_card);
   lv_obj_set_size(chips, LV_SIZE_CONTENT, 20);
   lv_obj_set_style_pad_column(chips, kChipGap, 0);
@@ -179,10 +181,15 @@ void build_header(uint16_t n, const SpeciesRecord *rec, bool unseen) {
     ui_label(row, &font_12_600, theme::MUTED, lv);
     return;
   }
-  lv_obj_t *nl = ui_label(s_card, &font_16_700, theme::TEXT, species_repo_name(n));
-  ui_label_clamp(nl, free_w, 1);
-  lv_obj_align(nl, LV_ALIGN_TOP_LEFT, 0,
-               (kHeadH - lv_font_get_line_height(&font_16_700)) / 2);
+  // Marca de status (capturado/visto/não visto) antes do nome, sem a palavra.
+  lv_obj_t *row = ui_box(s_card);
+  lv_obj_set_size(row, free_w, kHeadH);
+  lv_obj_set_style_pad_column(row, kMarkGap, 0);
+  lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
+  lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+  ui_status_mark_set(ui_status_mark(row, kMarkW), state);
+  lv_obj_t *nl = ui_label(row, &font_16_700, theme::TEXT, species_repo_name(n));
+  ui_label_clamp(nl, free_w - kMarkW - kMarkGap, 1);
 }
 
 // Janela 148x148: borda na cor do tipo 1 (desenhada por cima do sprite) e o
@@ -329,10 +336,6 @@ void refresh_chips() {
   }
   if (b.size()) lv_obj_clear_flag(s_chips, LV_OBJ_FLAG_HIDDEN);
   else lv_obj_add_flag(s_chips, LV_OBJ_FLAG_HIDDEN);
-  if (s_state_word) {
-    if (b.size()) lv_obj_add_flag(s_state_word, LV_OBJ_FLAG_HIDDEN);
-    else lv_obj_clear_flag(s_state_word, LV_OBJ_FLAG_HIDDEN);
-  }
 }
 
 lv_obj_t *build_chips(lv_obj_t *foot) {
@@ -344,7 +347,7 @@ lv_obj_t *build_chips(lv_obj_t *foot) {
   return s_chips;
 }
 
-void build_footer(uint16_t n, SpeciesState state) {
+void build_footer(uint16_t n) {
   lv_obj_t *foot = ui_box(s_card);
   lv_obj_set_size(foot, kInnerW, kFootH);
   lv_obj_align(foot, LV_ALIGN_BOTTOM_LEFT, 0, 0);
@@ -360,7 +363,6 @@ void build_footer(uint16_t n, SpeciesState state) {
   lv_obj_t *id = ui_label(foot, &font_12_600, theme::MUTED, "");
   lv_obj_set_height(id, lv_font_get_line_height(&font_12_600));
   lv_label_set_long_mode(id, LV_LABEL_LONG_DOT);
-  s_state_word = nullptr;
   if (s_team_mode) {
     lv_label_set_text_fmt(id, tr(STR_SC_TEAM_FOOTER_FMT), n, species_repo_name(n));
     lv_obj_set_flex_grow(id, 1);
@@ -375,13 +377,7 @@ void build_footer(uint16_t n, SpeciesState state) {
   lv_label_set_text_fmt(id, tr(STR_SC_FOOTER_FMT), n, dex_generation_roman(dex_generation_of(n)));
   lv_obj_set_flex_grow(id, 1);
 
-  bool caught = state == SpeciesState::Caught;
-  bool unseen = state == SpeciesState::Unknown;
   build_chips(foot);
-  ui_status_mark_set(ui_status_mark(foot, 12), state);
-  s_state_word = ui_label(foot, caught ? &font_12_700 : &font_12_600,
-                          caught ? theme::ACCENT : unseen ? theme::MUTED : theme::TEXT,
-                          tr(caught ? STR_STATE_CAUGHT : unseen ? STR_STATE_UNSEEN : STR_STATE_SEEN));
   refresh_chips();
 }
 
@@ -398,7 +394,6 @@ void show(uint16_t n) {
   }
   // O cartão sai antes do sprite: o lv_img ainda aponta pro buffer.
   s_chips = nullptr;
-  s_state_word = nullptr;
   lv_obj_clean(s_card);
   sprite_free(&s_sprite);
 
@@ -412,11 +407,11 @@ void show(uint16_t n) {
   lv_obj_set_pos(s_card, kCardX + dx, kCardY + dy);
 
   const SpeciesRecord *r = have ? &rec : nullptr;
-  build_header(n, r, unseen);
+  build_header(n, r, state);
   build_window(n, r, unseen);
   build_window_ring(r, unseen);  // depois da janela: desenha por cima do sprite
   build_stats(r, unseen);
-  build_footer(n, state);
+  build_footer(n);
 
   LOG_D("showcase", "#%u em %ums, maior_bloco=%u", n, lv_tick_elaps(t0),
         heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
@@ -593,7 +588,7 @@ void on_delete(lv_event_t *) {
   if (s_arm) lv_timer_del(s_arm);
   s_arm = nullptr;
   // Os objetos morrem com a tela.
-  s_sheet = s_catch = s_allow = s_wrap = s_chips = s_state_word = nullptr;
+  s_sheet = s_catch = s_allow = s_wrap = s_chips = nullptr;
   s_armed = false;
   sprite_free(&s_sprite);
   power_use_normal_level();
